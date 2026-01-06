@@ -57,7 +57,7 @@ WiFi_Manager_Init(WIFI_MANAGER_H* phWifiManager)
     return lResult;
 }
 
-int32_t
+esp_err_t
 WiFi_Manager_GetConfigurationState(WIFI_MANAGER_H hWifiManager, 
                                    uint32_t* pulConfigurationState)
 {
@@ -66,12 +66,12 @@ WiFi_Manager_GetConfigurationState(WIFI_MANAGER_H hWifiManager,
     if ((NULL == ptRsc) || 
         (NULL == pulConfigurationState))
     {
-        return APP_ERROR_INVALID_PARAM;
+        return ESP_ERR_INVALID_ARG;
     }
 
     *pulConfigurationState = ptRsc->ulConfigurationState;
 
-    return APP_SUCCESS;
+    return ESP_OK;
 }
 
 int32_t
@@ -168,7 +168,7 @@ WiFi_Manager_SaveCredentials(const char* ssid,const char* pass)
 int32_t
 wiFi_Manager_InitCredentials(WIFI_MANAGER_RSC_T* ptRsc)
 {    
-    int32_t lResult = APP_ERROR;
+    int32_t lResult = APP_SUCCESS;
     esp_err_t espErr = ESP_OK;
     nvs_handle_t hNvs = 0;
     size_t szSsidLen = sizeof(ptRsc->abSsid);

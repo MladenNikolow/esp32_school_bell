@@ -3,7 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "WiFi_Manager_API.h"
 #include "NVS_API.h"
-#include "WebServer_API.h"
+#include "Ws_API.h"
 #include "esp_log.h"
 
 static const char* TAG = "APP_TASK";
@@ -122,7 +122,7 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
             .hWiFiManager = ptAppTaskRsc->hWiFiManager,
         };
 
-        lResult = WebServer_Init(&tWebServerParams, &ptAppTaskRsc->hWebServer);
+        lResult = Ws_Init(&tWebServerParams, &ptAppTaskRsc->hWebServer);
         ESP_LOGE(TAG, "Finish Web Server Initialization with result: %" PRIu32, lResult);
     }
     

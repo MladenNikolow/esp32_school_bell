@@ -19,7 +19,7 @@ WiFi_Manager_GetPassword(WIFI_MANAGER_H hWifiManager,
                          uint8_t* pbPass,
                          size_t* pPassLen);
 
-int32_t
+esp_err_t
 WiFi_Manager_GetConfigurationState(WIFI_MANAGER_H hWifiManager, 
                                    uint32_t* pulConfigurationState);
 

@@ -5,6 +5,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #define WIFI_MANAGER_MAX_SSID_LENGTH            32
 #define WIFI_MANAGER_MAX_PASS_LENGTH            63
 

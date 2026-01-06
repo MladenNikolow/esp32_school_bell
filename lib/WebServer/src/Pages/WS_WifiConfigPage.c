@@ -1,4 +1,4 @@
-#include "WebServer_Request_WiFiConfig.h"
+#include "WS_WifiConfigPage.h"
 #include "Definitions/AppErrors.h"
 #include "WiFi_Manager_API.h"
 
@@ -20,7 +20,7 @@ static const char* WIFI_CONFIG_PAGE =
     "</html>";
 
 esp_err_t
-WebServer_Request_WiFiConfig_Get(httpd_req_t *req)
+Ws_WifiConfigPage_Get(httpd_req_t *req)
 {
     esp_err_t espErr = ESP_OK;
 
@@ -31,7 +31,7 @@ WebServer_Request_WiFiConfig_Get(httpd_req_t *req)
 }
 
 esp_err_t
-WebServer_Request_WiFiConfig_Post(httpd_req_t *req)
+Ws_WifiConfigPage_Post(httpd_req_t *req)
 {
     esp_err_t espErr = ESP_OK;
 

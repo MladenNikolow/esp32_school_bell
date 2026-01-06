@@ -22,7 +22,7 @@ void app_main()
     APP_TASK_PARAMS_T tAppTaskParams = 
     { 
         .ulTaskPriority = APP_TASK_PRIORITY
-     };
+    };
 
     lResult = AppTask_Create(&tAppTaskParams, &hAppTask);
     if(APP_SUCCESS == lResult)
