@@ -135,7 +135,7 @@ WiFi_Manager_GetPassword(WIFI_MANAGER_H hWifiManager,
 }
 
 esp_err_t
-WiFi_Manager_SaveCredentials(const char* ssid,const char* pass)
+WiFi_Manager_SaveCredentials(const char* ssid, const char* pass)
 {
     esp_err_t espErr = ESP_OK;
     nvs_handle_t hNvs = 0;
@@ -162,6 +162,33 @@ WiFi_Manager_SaveCredentials(const char* ssid,const char* pass)
         espErr = NVS_Close(hNvs);
     }
     
+    return espErr;
+}
+
+esp_err_t
+WiFi_Manager_ClearCredentials(void)
+{
+    esp_err_t espErr = ESP_OK;
+    nvs_handle_t hNvs = 0;
+    bool fIsOpen = false;
+
+    espErr = NVS_Open(WIFI_MANAGER_NVS_NAMESPACE, NVS_READWRITE, &hNvs);
+    if(ESP_OK == espErr)
+    {
+        fIsOpen = true;
+        espErr = nvs_erase_all(hNvs);
+    }
+
+    if(ESP_OK == espErr)
+    {
+        espErr = NVS_Commit(hNvs);
+    }
+    
+    if(fIsOpen)
+    {
+        espErr = NVS_Close(hNvs);
+    }
+
     return espErr;
 }
     

@@ -5,7 +5,8 @@
 #include "WiFi_Manager_API.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
-#include "WS_AccessPoint.h"
+#include "AP/WS_AccessPoint.h"
+#include "STA/WS_Station.h"
 #include "esp_netif.h"
 #include "esp_log.h"
 #include "lwip/inet.h"   // for IPSTR / IP2STR
@@ -60,18 +61,29 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
                     espErr = ws_ConfigureAp(ptRsc);
 
                     // TODO : Move WS_AccessPoint_Start out of here (in event handler)
+                    if(ESP_OK == espErr)
+                    {
+                        espErr = WS_AccessPoint_Start();
+                    }
+
                     if(ESP_OK == espErr) 
                     {
                         esp_netif_ip_info_t ip;
                         esp_netif_get_ip_info(ptRsc->hApNetif, &ip);
                         ESP_LOGI(TAG, "AP IP: " IPSTR, IP2STR(&ip.ip));
                     }
+
                     break;
                 }
 
                 case WIFI_MANAGER_CONFIGURATION_STATE_CONFIGURED:
                 {
                     espErr = ws_ConfigureSta(ptRsc);
+
+                    if(ESP_OK == espErr)
+                    {
+                        espErr = WS_Station_Start();
+                    }
                     
                     break;
                 }
@@ -82,11 +94,6 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
                     espErr = ESP_ERR_INVALID_STATE;
                     break;
                 }
-            }
-
-            if(ESP_OK == espErr)
-            {
-                espErr = WS_AccessPoint_Start();
             }
 
             if(ESP_OK == espErr) 
@@ -230,6 +237,15 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
                                             &Ws_EventHandler_StaIP,
                                             ptRsc->hApNetif, 
                                             &ptRsc->tEventHandlerStaGotIp);
+    }
+
+    if(ESP_OK == espErr) 
+    {
+        espErr = esp_event_handler_instance_register(WIFI_EVENT, 
+                                            WIFI_EVENT_STA_DISCONNECTED,
+                                            &Ws_EventHandler_StaWiFi,
+                                            ptRsc->hApNetif, 
+                                            NULL);
     }
                              
     if(ESP_OK == espErr) 

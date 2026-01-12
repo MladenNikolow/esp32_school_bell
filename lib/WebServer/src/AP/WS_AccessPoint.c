@@ -1,6 +1,6 @@
 #include "WS_AccessPoint.h"
 #include "esp_http_server.h"
-#include "Pages/WS_WifiConfigPage.h"
+#include "Pages/WiFiConfig/WS_WifiConfigPage.h"
 
 httpd_uri_t wifi_config_get = {
     .uri = "/",

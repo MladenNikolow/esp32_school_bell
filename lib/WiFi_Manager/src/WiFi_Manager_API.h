@@ -26,3 +26,6 @@ WiFi_Manager_GetConfigurationState(WIFI_MANAGER_H hWifiManager,
 esp_err_t
 WiFi_Manager_SaveCredentials(const char* ssid,
                              const char* pass);
+                             
+esp_err_t
+WiFi_Manager_ClearCredentials(void);
