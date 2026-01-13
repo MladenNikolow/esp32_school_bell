@@ -22,6 +22,7 @@ WS_Station_Start(void)
     httpd_config_t tHttpServerConfig = HTTPD_DEFAULT_CONFIG();
     tHttpServerConfig.max_uri_handlers = 64;
     tHttpServerConfig.stack_size = 16384;
+    tHttpServerConfig.uri_match_fn = httpd_uri_match_wildcard;
     httpd_handle_t hHttpServer = NULL;
 
     espRslt = httpd_start(&hHttpServer, &tHttpServerConfig);

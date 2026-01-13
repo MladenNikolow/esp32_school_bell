@@ -36,7 +36,7 @@ Ws_React_RegisterStaticFiles(httpd_handle_t hHttpServer)
 
     espRslt = httpd_register_uri_handler(hHttpServer, &index_uri);
 
-        if(espRslt == ESP_OK)
+    if(espRslt == ESP_OK)
     {
         httpd_uri_t assets_uri =
         {
