@@ -4,6 +4,7 @@
 #include "WiFi_Manager_API.h"
 #include "NVS_API.h"
 #include "Ws_API.h"
+#include "FatFS/FatFS_API.h"
 #include "esp_log.h"
 
 static const char* TAG = "APP_TASK";
@@ -111,6 +112,11 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
     if (APP_SUCCESS == lResult)
     {
         lResult = WiFi_Manager_Init(&ptAppTaskRsc->hWiFiManager);
+    }
+
+    if(APP_SUCCESS == lResult)
+    {
+        lResult = FatFS_Init();
     }
 
     if(APP_SUCCESS == lResult)
