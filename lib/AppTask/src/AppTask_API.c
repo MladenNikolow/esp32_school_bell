@@ -109,15 +109,27 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
 
     lResult = NVS_Init();
 
+    ESP_LOGE(TAG, "Finish Nvs Initialization with result: %" PRIu32, lResult);
+
     if (APP_SUCCESS == lResult)
     {
+        ESP_LOGE(TAG, "Start WiFi Initialization.");
+
         lResult = WiFi_Manager_Init(&ptAppTaskRsc->hWiFiManager);
+
+        ESP_LOGE(TAG, "Finish WiFi Initialization with result: %" PRIu32, lResult);
     }
 
     if(APP_SUCCESS == lResult)
     {
+        ESP_LOGE(TAG, "Start Fat FS Initialization.");
+
         lResult = FatFS_Init();
+
+        ESP_LOGE(TAG, "Finish Fat FS Initialization with result: %" PRIu32, lResult);
     }
+
+    debug_list_react_assets();
 
     if(APP_SUCCESS == lResult)
     {

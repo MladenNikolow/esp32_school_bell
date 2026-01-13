@@ -1,13 +1,19 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "Definitions/AppErrors.h"
+#include "esp_log.h"
 
 // TODO: Null checks and param validations
+
+static const char* TAG = "NVS_API";
 
 esp_err_t
 NVS_Init(void)  
 {
-    return nvs_flash_init();
+    esp_err_t espRslt = nvs_flash_init();
+    ESP_LOGE(TAG, "nvs_flash_init returned 0x%04x (%s)", espRslt, esp_err_to_name(espRslt));
+
+    return espRslt;
 }   
 
 esp_err_t
