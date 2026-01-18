@@ -1,0 +1,19 @@
+{
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32s3"
+  },
+  "clangd.path": "C:\\Users\\Administrator\\.espressif\\tools\\esp-clang\\16.0.1-fe4f10a809\\esp-clang\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=d:\\Projects\\esp32-touch\\ESP32-S3-Touch-LCD-4\\examples\\ESP-IDF-v5.3.1\\07_lvgl_demo_v9\\build"
+  ],
+  "idf.portWin": "COM5",
+  "idf.flashType": "UART",
+  "idf.espIdfPathWin": "C:\\Users\\Administrator\\esp\\v5.3.1\\esp-idf",
+  "idf.toolsPathWin": "C:\\Users\\Administrator\\.espressif",
+  "idf.pythonInstallPath": "C:\\Users\\Administrator\\.espressif\\tools\\idf-python\\3.11.2\\python.exe"
+}
