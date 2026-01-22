@@ -15,4 +15,5 @@ idf_component_register(
             WiFi_Manager
             WebServer
             FileSystem
+            TouchScreen
 )

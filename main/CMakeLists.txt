@@ -2,9 +2,9 @@ set(LV_DEMO_DIR ../managed_components/lvgl__lvgl/demos)
 file(GLOB_RECURSE LV_DEMOS_SOURCES ${LV_DEMO_DIR}/*.c)
 
 idf_component_register(
-    SRCS "ringy_logo.c" "main.c" ${LV_DEMOS_SOURCES}
+    SRCS "main.c" ${LV_DEMOS_SOURCES}
     INCLUDE_DIRS . ${LV_DEMO_DIR}
-    REQUIRES AppTask Generic NVS WebServer WiFi_Manager
+    REQUIRES AppTask Generic NVS WebServer WiFi_Manager lvgl__lvgl waveshare__esp32_s3_touch_lcd_4 espressif__esp_lvgl_port TouchScreen
 )
 
 idf_component_get_property(LVGL_LIB lvgl__lvgl COMPONENT_LIB)

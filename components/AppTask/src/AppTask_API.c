@@ -5,6 +5,7 @@
 #include "NVS_API.h"
 #include "Ws_API.h"
 #include "FatFS_API.h"
+#include "TouchScreen_API.h"
 #include "esp_log.h"
 
 static const char* TAG = "APP_TASK";
@@ -21,6 +22,7 @@ typedef struct _APP_TASK_RSC_T
 
     WIFI_MANAGER_H       hWiFiManager;          /* WiFi manager handle */
     WEB_SERVER_H         hWebServer;            /* Web server handle */
+    TOUCHSCREEN_H        hTouchScreen;          /* Touch screen handle */
 } APP_TASK_RSC_T;
 
 static void 
@@ -107,29 +109,40 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
 
     assert(NULL != ptAppTaskRsc);
 
+    /* ========== PHASE 1: Hardware & Storage Initialization ========== */
+
     lResult = NVS_Init();
-
-    ESP_LOGE(TAG, "Finish Nvs Initialization with result: %" PRIu32, lResult);
-
-    if (APP_SUCCESS == lResult)
-    {
-        ESP_LOGE(TAG, "Start WiFi Initialization.");
-
-        lResult = WiFi_Manager_Init(&ptAppTaskRsc->hWiFiManager);
-
-        ESP_LOGE(TAG, "Finish WiFi Initialization with result: %" PRIu32, lResult);
-    }
+    ESP_LOGE(TAG, "Finish NVS Initialization with result: %" PRIu32, lResult);
 
     if(APP_SUCCESS == lResult)
     {
         ESP_LOGE(TAG, "Start Fat FS Initialization.");
 
         lResult = FatFS_Init();
-
         ESP_LOGE(TAG, "Finish Fat FS Initialization with result: %" PRIu32, lResult);
     }
 
+    if(APP_SUCCESS == lResult)
+    {
+        ESP_LOGE(TAG, "Start Touch Screen Display Initialization.");
+
+        lResult = TouchScreen_DisplayInit();
+        ESP_LOGE(TAG, "Finish Touch Screen Display Initialization with result: %" PRIu32, lResult);
+    }
+
+    /* ========== PHASE 2: Asset Verification ========== */
+
     debug_list_react_assets();
+
+    /* ========== PHASE 3: Connectivity & Services ========== */
+
+    if(APP_SUCCESS == lResult)
+    {
+        ESP_LOGE(TAG, "Start WiFi Initialization.");
+
+        lResult = WiFi_Manager_Init(&ptAppTaskRsc->hWiFiManager);
+        ESP_LOGE(TAG, "Finish WiFi Initialization with result: %" PRIu32, lResult);
+    }
 
     if(APP_SUCCESS == lResult)
     {
@@ -142,6 +155,34 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
 
         lResult = Ws_Init(&tWebServerParams, &ptAppTaskRsc->hWebServer);
         ESP_LOGE(TAG, "Finish Web Server Initialization with result: %" PRIu32, lResult);
+    }
+
+    /* ========== PHASE 4: UI Initialization & Presentation ========== */
+
+    if(APP_SUCCESS == lResult)
+    {
+        ESP_LOGE(TAG, "Start Touch Screen Task Initialization.");
+
+        /* Initialize touch screen component with priority one level lower than APP_TASK */
+        TOUCHSCREEN_PARAMS_T tTouchScreenParams = 
+        {
+            .ulTaskPriority = ptAppTaskRsc->tParams.ulTaskPriority - 1,
+        };
+
+        lResult = TouchScreen_Init(&tTouchScreenParams, &ptAppTaskRsc->hTouchScreen);
+        ESP_LOGE(TAG, "Finish Touch Screen Task Initialization with result: %" PRIu32, lResult);
+    }
+
+    if(APP_SUCCESS == lResult)
+    {
+        ESP_LOGE(TAG, "Showing splash screen");
+        TouchScreen_ShowSplash(ptAppTaskRsc->hTouchScreen, 5000);
+
+        /* Delay to let splash screen display */
+        vTaskDelay(pdMS_TO_TICKS(5100));
+
+        ESP_LOGE(TAG, "Showing WiFi setup screen");
+        TouchScreen_ShowWiFiSetup(ptAppTaskRsc->hTouchScreen, NULL);
     }
     
     return lResult;

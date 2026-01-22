@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_log.h"
 #include "AppTask_API.h"
 #include "sdkconfig.h"
@@ -13,12 +14,23 @@ static const char* TAG = "main";
     #define CONFIG_FREERTOS_TIMER_TASK_PRIORITY 1 
 #endif 
 
-#define APP_TASK_PRIORITY   (CONFIG_FREERTOS_TIMER_TASK_PRIORITY + 1)
+#define APP_TASK_PRIORITY   (CONFIG_FREERTOS_TIMER_TASK_PRIORITY + 2)
 
-void app_main() 
+/**
+ * @brief Main application entry point
+ * 
+ * Initialization order:
+ * 1. APP_TASK (priority 3) - manages WiFi, NVS, WebServer, Display, TouchScreen
+ * 2. Display/BSP (via TouchScreen_DisplayInit in APP_TASK)
+ * 3. TouchScreen (priority 2) - manages UI and display updates
+ * 4. LVGL rendering (priority 4) - runs continuously
+ * 5. Touch input (priority 5) - highest priority for responsiveness
+ */
+void app_main(void) 
 {
     int32_t lResult = APP_SUCCESS;
-    APP_TASK_H hAppTask;
+    APP_TASK_H hAppTask = NULL;
+    
     APP_TASK_PARAMS_T tAppTaskParams = 
     { 
         .ulTaskPriority = APP_TASK_PRIORITY
@@ -27,13 +39,15 @@ void app_main()
     lResult = AppTask_Create(&tAppTaskParams, &hAppTask);
     if(APP_SUCCESS == lResult)
     {
-        ESP_LOGE(TAG, "AppTask_Create successful");
-        vTaskDelete(NULL);
+        ESP_LOGI(TAG, "AppTask_Create successful");
     }
     else
     {
         ESP_LOGE(TAG, "AppTask_Create failed: %" PRIu32, lResult);
     }
+    
+    /* main task completes - all functionality is handled by AppTask */
+    vTaskDelete(NULL);
 }
 
 // #include <stdio.h>

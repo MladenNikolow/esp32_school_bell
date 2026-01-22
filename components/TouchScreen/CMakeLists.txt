@@ -1,0 +1,21 @@
+idf_component_register(
+    SRCS 
+        "TouchScreenAPI/src/TouchScreen_API.c"
+        "TouchScreen_UI_Manager/src/ui_manager.c"
+        "TouchScreen_UI_Manager/assets/ringy_logo.c"
+        "TouchScreen_UI_Manager/screens/splash/splash_screen.c"
+        "TouchScreen_UI_Manager/screens/wifi_setup/wifi_setup_screen.c"
+        "TouchScreen_UI_Manager/components/button/button_component.c"
+        "TouchScreen_UI_Manager/components/input_field/input_field_component.c"
+    INCLUDE_DIRS 
+        "TouchScreenAPI/include"
+        "TouchScreen_UI_Manager/include"
+        "TouchScreen_UI_Manager/src"
+        "TouchScreen_UI_Manager/assets"
+    REQUIRES
+        freertos
+        esp_common
+        lvgl
+        waveshare__esp32_s3_touch_lcd_4
+        Generic
+)
