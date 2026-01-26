@@ -122,20 +122,37 @@ static void lvgl_port_touchpad_read(lv_indev_t *indev_drv, lv_indev_data_t *data
     uint8_t touch_cnt = 0;
     esp_lcd_touch_point_data_t touch_data[CONFIG_ESP_LCD_TOUCH_MAX_POINTS] = {0};
 
-    /* Read data from touch controller into memory */
-    ESP_ERROR_CHECK(esp_lcd_touch_read_data(touch_ctx->handle));
+    /* Read data from touch controller into memory with retries and graceful failure handling */
+    const int max_retries = 3;
+    esp_err_t err = ESP_FAIL;
+    for (int r = 0; r < max_retries; ++r) {
+        err = esp_lcd_touch_read_data(touch_ctx->handle);
+        if (err == ESP_OK) break;
+        ESP_LOGW("lvgl_port_touch", "esp_lcd_touch_read_data attempt %d failed: %s", r + 1, esp_err_to_name(err));
+        vTaskDelay(pdMS_TO_TICKS(10 * (r + 1)));
+    }
 
-    /* Read data from touch controller */
-    ESP_ERROR_CHECK(esp_lcd_touch_get_data(touch_ctx->handle, touch_data, &touch_cnt, CONFIG_ESP_LCD_TOUCH_MAX_POINTS));
+    if (err != ESP_OK) {
+        ESP_LOGW("lvgl_port_touch", "touch read failed after %d attempts: %s", max_retries, esp_err_to_name(err));
+        /* Recover gracefully: report no touch to LVGL this cycle */
+        data->state = LV_INDEV_STATE_RELEASED;
+        return;
+    }
+
+    /* Read parsed touch points into touch_data */
+    err = esp_lcd_touch_get_data(touch_ctx->handle, touch_data, &touch_cnt, CONFIG_ESP_LCD_TOUCH_MAX_POINTS);
+    if (err != ESP_OK) {
+        ESP_LOGW("lvgl_port_touch", "esp_lcd_touch_get_data failed: %s", esp_err_to_name(err));
+        data->state = LV_INDEV_STATE_RELEASED;
+        return;
+    }
 
 #if (CONFIG_ESP_LCD_TOUCH_MAX_POINTS > 1 && CONFIG_LV_USE_GESTURE_RECOGNITION)
-    // Number of touch points which need to be constantly updated inside gesture recognizers
 #define GESTURE_TOUCH_POINTS 2
 #if GESTURE_TOUCH_POINTS > CONFIG_ESP_LCD_TOUCH_MAX_POINTS
 #error "Number of touch point for gesture exceeds maximum number of aquired touch points"
 #endif
 
-    /* Initialize LVGL touch data for each activated touch point */
     lv_indev_touch_data_t touches[GESTURE_TOUCH_POINTS] = {0};
 
     for (int i = 0; i < touch_cnt && i < GESTURE_TOUCH_POINTS; i++) {
@@ -146,7 +163,6 @@ static void lvgl_port_touchpad_read(lv_indev_t *indev_drv, lv_indev_data_t *data
         touches[i].timestamp = esp_timer_get_time() / 1000;
     }
 
-    /* Pass touch data to LVGL gesture recognizers */
     lv_indev_gesture_recognizers_update(indev_drv, touches, GESTURE_TOUCH_POINTS);
     lv_indev_gesture_recognizers_set_data(indev_drv, data);
 
