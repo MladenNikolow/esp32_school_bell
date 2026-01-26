@@ -39,8 +39,6 @@ void touchscreen_ui_show_splash(uint32_t duration_ms)
     }
     
     ESP_LOGI(TAG, "Splash screen display time completed");
-    vTaskDelay(pdMS_TO_TICKS(100));
-    lv_refr_now(NULL);
 }
 
 void touchscreen_ui_show_wifi_setup(TouchScreen_WiFi_Setup_Callback_t callback)
@@ -48,22 +46,7 @@ void touchscreen_ui_show_wifi_setup(TouchScreen_WiFi_Setup_Callback_t callback)
     ESP_LOGI(TAG, "Showing WiFi setup screen");
     ui_state.current_screen = TOUCHSCREEN_UI_SCREEN_WIFI_SETUP;
     ui_state.wifi_callback = callback;
-    
-    // Small delay to ensure previous screen is cleaned up
-    vTaskDelay(pdMS_TO_TICKS(100));
-    
-    // Explicitly clean the active screen before creating new one
-    lv_obj_t *scr = lv_scr_act();
-    if (scr) {
-        lv_obj_clean(scr);
-        ESP_LOGI(TAG, "Cleaned active screen before WiFi setup");
-    }
-    
-    vTaskDelay(pdMS_TO_TICKS(50));
-    
     touchscreen_wifi_setup_screen_create(callback);
-    
-    // Let LVGL handle refresh naturally - don't force it
     ESP_LOGI(TAG, "WiFi setup screen displayed");
 }
 

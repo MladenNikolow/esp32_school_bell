@@ -46,6 +46,9 @@ typedef struct {
     void (*pfWiFiCallback)(int result, const char *ssid, const char *password);  /* WiFi callback */
 } TOUCHSCREEN_RSC_T;
 
+/* Static resource pointer for callback wrapper */
+static TOUCHSCREEN_RSC_T* gs_ptTouchScreenRsc = NULL;
+
 /* Forward declarations */
 static void touchScreen_TaskEntry(void* pvArg);
 static int32_t touchScreen_HandleSplashEvent(TOUCHSCREEN_RSC_T* ptRsc, uint32_t duration_ms);
@@ -57,10 +60,26 @@ static int32_t touchScreen_HandleWiFiSetupEvent(TOUCHSCREEN_RSC_T* ptRsc);
 int32_t TouchScreen_DisplayInit(void)
 {
     int32_t lResult = APP_SUCCESS;
+    uint32_t ulRetries = 0;
+    const uint32_t MAX_RETRIES = 50;  /* 5 seconds at 100ms per retry */
     
     ESP_LOGI(TAG, "Initializing display");
     
     bsp_display_start();
+    
+    /* Verify LVGL has completed initialization by checking display object */
+    while (ulRetries < MAX_RETRIES && lv_display_get_default() == NULL) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        ulRetries++;
+        ESP_LOGD(TAG, "Waiting for LVGL initialization... (retry %lu)", ulRetries);
+    }
+    
+    if (lv_display_get_default() == NULL) {
+        ESP_LOGE(TAG, "LVGL failed to initialize display after %lu retries", MAX_RETRIES);
+        lResult = APP_ERROR_UNEXPECTED;
+    } else {
+        ESP_LOGI(TAG, "LVGL display initialized successfully (retry %lu)", ulRetries);
+    }
     
     return lResult;
 }
@@ -70,7 +89,6 @@ int32_t TouchScreen_DisplayInit(void)
  */
 int32_t TouchScreen_Init(TOUCHSCREEN_PARAMS_T* ptParams, TOUCHSCREEN_H* phTouchScreen)
 {
-    int32_t lResult = APP_SUCCESS;
     TOUCHSCREEN_RSC_T* ptRsc = NULL;
     BaseType_t xTaskResult = pdFAIL;
 
@@ -116,6 +134,7 @@ int32_t TouchScreen_Init(TOUCHSCREEN_PARAMS_T* ptParams, TOUCHSCREEN_H* phTouchS
 
     ptRsc->bInitialized = true;
     *phTouchScreen = (TOUCHSCREEN_H)ptRsc;
+    gs_ptTouchScreenRsc = ptRsc;  /* Store global reference for callback wrapper */
 
     ESP_LOGI(TAG, "Touch screen component initialized successfully");
     return APP_SUCCESS;
@@ -209,7 +228,16 @@ static void touchScreen_TaskEntry(void* pvArg)
         return;
     }
 
-    ESP_LOGI(TAG, "Touch screen task started");
+    ESP_LOGI(TAG, "Touch screen task started, verifying LVGL display is ready...");
+
+    /* Verify LVGL display is ready (should already be initialized by TouchScreen_DisplayInit) */
+    if (lv_display_get_default() == NULL) {
+        ESP_LOGE(TAG, "LVGL display is not initialized!");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    ESP_LOGI(TAG, "LVGL display verified ready, initializing UI manager...");
 
     /* Initialize UI manager - display is already initialized by bsp_display_start() */
     if (!TouchScreen_UI_ManagerInit()) {
@@ -262,6 +290,16 @@ static int32_t touchScreen_HandleSplashEvent(TOUCHSCREEN_RSC_T* ptRsc, uint32_t 
 }
 
 /**
+ * @brief WiFi callback wrapper - converts TouchScreen_WiFi_Setup_Result_t to int result
+ */
+static void touchScreen_WiFiCallbackWrapper(TouchScreen_WiFi_Setup_Result_t result, const char *ssid, const char *password)
+{
+    if (gs_ptTouchScreenRsc && gs_ptTouchScreenRsc->pfWiFiCallback) {
+        gs_ptTouchScreenRsc->pfWiFiCallback((int)result, ssid, password);
+    }
+}
+
+/**
  * @brief Handle WiFi setup screen event
  */
 static int32_t touchScreen_HandleWiFiSetupEvent(TOUCHSCREEN_RSC_T* ptRsc)
@@ -270,8 +308,8 @@ static int32_t touchScreen_HandleWiFiSetupEvent(TOUCHSCREEN_RSC_T* ptRsc)
         return APP_ERROR_INVALID_PARAM;
     }
 
-    /* Show WiFi setup screen with callback */
-    TouchScreen_UI_ShowWiFiSetup(ptRsc->pfWiFiCallback);
+    /* Show WiFi setup screen with callback wrapper */
+    TouchScreen_UI_ShowWiFiSetup(touchScreen_WiFiCallbackWrapper);
 
     return APP_SUCCESS;
 }
