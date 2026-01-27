@@ -4,9 +4,10 @@ idf_component_register(
         "src/WS_EventHandlers.c"
         "src/AP/WS_AccessPoint.c"
         "src/STA/WS_Station.c"
-        "src/Pages/Schedule/WS_SchedulePage.c"
+        "src/Auth/WS_Auth.c"
         "src/Pages/WiFiConfig/WS_WifiConfigPage.c"
         "src/React/Ws_React.c"
+        "src/React/Ws_React_Static.c"
         "src/React/RestAPI/Example/ExampleAPI.c"
     INCLUDE_DIRS "src"
     REQUIRES

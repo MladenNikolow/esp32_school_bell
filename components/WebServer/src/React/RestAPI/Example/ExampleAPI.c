@@ -5,6 +5,7 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "cJSON.h"
+//#include "Auth/WS_Auth.h"
  
 static char mode_value[32] = "AUTO";   // default mode
 
@@ -52,6 +53,14 @@ Ws_React_RegisterExampleAPI(httpd_handle_t hHttpServer)
 static esp_err_t 
 ws_React_GetMode(httpd_req_t* ptReq)
 {
+    //char** out_user;
+    //char** out_role;
+    //auth_require_bearer(ptReq, out_user, out_role); // Ensure auth system is initialized
+    //if(out_role == NULL || strcmp(*out_role, "admin" != 0)
+    //{
+    //    return ESP_FAIL; // Only admin can get mode
+    //}
+
     cJSON* ptJsonRoot = cJSON_CreateObject();
     cJSON_AddStringToObject(ptJsonRoot, "mode", mode_value);
  
