@@ -7,6 +7,7 @@
 #include "FatFS_API.h"
 #include "TouchScreen_API.h"
 #include "esp_log.h"
+#include "esp_system.h"
 
 static const char* TAG = "APP_TASK";
 
@@ -27,6 +28,36 @@ typedef struct _APP_TASK_RSC_T
 
 static void 
 appTask_Enter(void* pvArg);
+
+/**
+ * @brief WiFi setup callback - saves credentials and restarts the device.
+ *        Mirrors the behavior of Ws_WifiConfigPage_Post.
+ */
+static void
+appTask_WiFiSetupCallback(int result, const char *ssid, const char *password)
+{
+    if (result == 0 && ssid != NULL && password != NULL)  /* SUCCESS */
+    {
+        ESP_LOGI(TAG, "WiFi setup: saving credentials for SSID '%s'", ssid);
+
+        esp_err_t espErr = WiFi_Manager_SaveCredentials(ssid, password);
+
+        if (ESP_OK == espErr)
+        {
+            ESP_LOGI(TAG, "Credentials saved. Restarting...");
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            esp_restart();
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to save WiFi credentials: %s", esp_err_to_name(espErr));
+        }
+    }
+    else
+    {
+        ESP_LOGI(TAG, "WiFi setup cancelled or failed (result=%d)", result);
+    }
+}
 
 static uint32_t
 appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc);
@@ -182,7 +213,7 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
         vTaskDelay(pdMS_TO_TICKS(5100));
 
         ESP_LOGE(TAG, "Showing WiFi setup screen");
-        TouchScreen_ShowWiFiSetup(ptAppTaskRsc->hTouchScreen, NULL);
+        TouchScreen_ShowWiFiSetup(ptAppTaskRsc->hTouchScreen, appTask_WiFiSetupCallback);
     }
     
     return lResult;
