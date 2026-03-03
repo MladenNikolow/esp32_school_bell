@@ -17,7 +17,7 @@ static const char* TAG = "WEBSERVER_API";
 typedef struct _WEB_SERVER_RSC_T
 {
     WEB_SERVER_PARAMS_T             tParams;                /* Init params */
-    esp_netif_t*                    hApNetif;               /* AP netif handle */
+    esp_netif_t*                    hNetif;                 /* netif handle (AP or STA) */
     esp_event_handler_instance_t    tEventHandlerStaGotIp;  /* STA got IP event handler instance */  
 } WEB_SERVER_RSC_T;
 
@@ -69,7 +69,7 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
                     if(ESP_OK == espErr) 
                     {
                         esp_netif_ip_info_t ip;
-                        esp_netif_get_ip_info(ptRsc->hApNetif, &ip);
+                        esp_netif_get_ip_info(ptRsc->hNetif, &ip);
                         ESP_LOGI(TAG, "AP IP: " IPSTR, IP2STR(&ip.ip));
                     }
 
@@ -134,8 +134,8 @@ ws_ConfigureAp(WEB_SERVER_RSC_T* ptRsc)
         espErr = esp_event_loop_create_default();
     }
 
-    ptRsc->hApNetif = esp_netif_create_default_wifi_ap();
-    if(NULL == ptRsc->hApNetif)
+    ptRsc->hNetif = esp_netif_create_default_wifi_ap();
+    if(NULL == ptRsc->hNetif)
     {
         espErr = ESP_ERR_NO_MEM;
     }
@@ -218,8 +218,8 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
     
     if(ESP_OK == espErr) 
     {
-        ptRsc->hApNetif = esp_netif_create_default_wifi_sta();
-        if(NULL == ptRsc->hApNetif)
+        ptRsc->hNetif = esp_netif_create_default_wifi_sta();
+        if(NULL == ptRsc->hNetif)
         {
             espErr = ESP_ERR_NO_MEM;
         }
@@ -235,7 +235,7 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
         espErr = esp_event_handler_instance_register(IP_EVENT, 
                                             IP_EVENT_STA_GOT_IP,
                                             &Ws_EventHandler_StaIP,
-                                            ptRsc->hApNetif, 
+                                            ptRsc->hNetif, 
                                             &ptRsc->tEventHandlerStaGotIp);
     }
 
@@ -244,7 +244,7 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
         espErr = esp_event_handler_instance_register(WIFI_EVENT, 
                                             WIFI_EVENT_STA_DISCONNECTED,
                                             &Ws_EventHandler_StaWiFi,
-                                            ptRsc->hApNetif, 
+                                            ptRsc->hNetif, 
                                             NULL);
     }
                              

@@ -529,6 +529,13 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# WebServer Auth
+#
+CONFIG_WS_AUTH_USERNAME="admin"
+CONFIG_WS_AUTH_PASSWORD="password123"
+# end of WebServer Auth
+
+#
 # Compiler options
 #
 # CONFIG_COMPILER_OPTIMIZATION_DEBUG is not set

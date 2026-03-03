@@ -13,7 +13,9 @@
   ],
   "idf.portWin": "COM5",
   "idf.flashType": "UART",
-  "idf.espIdfPathWin": "C:\\Users\\Administrator\\esp\\v5.3.1\\esp-idf",
-  "idf.toolsPathWin": "C:\\Users\\Administrator\\.espressif",
-  "idf.pythonInstallPath": "C:\\Users\\Administrator\\.espressif\\tools\\idf-python\\3.11.2\\python.exe"
+  "idf.espIdfPathWin": "C:\\Users\\rgevs\\esp\\v5.3.1\\esp-idf",
+  "idf.toolsPathWin": "C:\\Users\\rgevs\\.espressif",
+  "idf.pythonInstallPath": "C:\\Users\\rgevs\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "idf.currentSetup": "C:\\Users\\rgevs\\esp\\v5.3.1\\esp-idf"
 }
