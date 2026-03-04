@@ -136,7 +136,10 @@ static esp_err_t ws_react_assets_handler(httpd_req_t* req)
 
     // Vite hashes asset filenames on every build — they are safe to cache
     // indefinitely in the browser. This eliminates redundant re-downloads.
-    (void)httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=31536000, immutable");
+    //(void)httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=31536000, immutable");
+
+    // However, during development we want to disable caching of assets, otherwise the browser may fail to pick up new hashed filenames after a rebuild, resulting in a broken app until
+    (void)httpd_resp_set_hdr(req, "Cache-Control", "no-store");
 
     return WS_React_FileServer_ServeFile(req, path, mime, is_gz);
 }
