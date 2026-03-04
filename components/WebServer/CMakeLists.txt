@@ -1,0 +1,22 @@
+idf_component_register(
+    SRCS
+        "src/WS_API.c"
+        "src/WS_EventHandlers.c"
+        "src/AP/WS_AccessPoint.c"
+        "src/STA/WS_Station.c"
+        "src/Auth/WS_Auth.c"
+        "src/Pages/WiFiConfig/WS_WifiConfigPage.c"
+        "src/React/Ws_React.c"
+        "src/React/WS_React_FileServer.c"
+        "src/React/WS_React_Routes.c"
+        "src/React/RestAPI/Example/ExampleAPI.c"
+    INCLUDE_DIRS "src"
+    REQUIRES
+        esp_http_server
+        esp_wifi
+        esp_event
+        nvs_flash
+        json
+        WiFi_Manager
+        Generic
+)

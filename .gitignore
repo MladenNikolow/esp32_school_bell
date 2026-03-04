@@ -60,5 +60,5 @@ dkms.conf
 .vscode/launch.json
 .vscode/ipch
 
-# Platfrom IO
-.pio
+# Build directory
+build/
