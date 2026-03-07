@@ -63,7 +63,7 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
                     // TODO : Move WS_AccessPoint_Start out of here (in event handler)
                     if(ESP_OK == espErr)
                     {
-                        espErr = WS_AccessPoint_Start();
+                        espErr = WS_AccessPoint_Start(ptRsc->tParams.hWiFiManager);
                     }
 
                     if(ESP_OK == espErr) 
@@ -141,6 +141,10 @@ ws_ConfigureAp(WEB_SERVER_RSC_T* ptRsc)
     }
     else
     {
+        /* Create STA netif so the STA interface is available for WiFi scanning
+           while the AP is running (requires WIFI_MODE_APSTA below). */
+        (void)esp_netif_create_default_wifi_sta();
+
         wifi_init_config_t tWifiInitCfg = WIFI_INIT_CONFIG_DEFAULT();
         espErr = esp_wifi_init(&tWifiInitCfg);
     }
@@ -168,7 +172,8 @@ ws_ConfigureAp(WEB_SERVER_RSC_T* ptRsc)
             tConfigAp.ap.authmode = WIFI_AUTH_OPEN;
         }
 
-        espErr = esp_wifi_set_mode(WIFI_MODE_AP);
+        /* APSTA mode: AP stays visible while STA interface can be used for scanning */
+        espErr = esp_wifi_set_mode(WIFI_MODE_APSTA);
     }
 
     if(ESP_OK == espErr) 

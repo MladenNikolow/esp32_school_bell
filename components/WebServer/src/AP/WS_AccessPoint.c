@@ -1,37 +1,49 @@
 #include "WS_AccessPoint.h"
 #include "esp_http_server.h"
-#include "Pages/WiFiConfig/WS_WifiConfigPage.h"
+#include "esp_log.h"
+#include "React/WS_React_Routes.h"
+#include "AP/RestAPI/WS_WiFiConfigAPI.h"
 
-httpd_uri_t wifi_config_get = {
-    .uri = "/",
-    .method = HTTP_GET,
-    .handler = Ws_WifiConfigPage_Get
-};
+static const char* TAG = "WS_ACCESS_POINT";
 
-httpd_uri_t wifi_config_post = {
-    .uri = "/wifi_config",
-    .method = HTTP_POST,
-    .handler = Ws_WifiConfigPage_Post
-};
+static WIFI_CONFIG_API_H s_hWifiConfigApi = NULL;
 
 esp_err_t
-WS_AccessPoint_Start(void)
+WS_AccessPoint_Start(WIFI_MANAGER_H hWiFiManager)
 {
-    esp_err_t espErr = ESP_OK;
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    httpd_handle_t server = NULL;
+    esp_err_t espRslt = ESP_OK;
 
-    espErr = httpd_start(&server, &config);
+    httpd_config_t tHttpServerConfig = HTTPD_DEFAULT_CONFIG();
+    tHttpServerConfig.max_uri_handlers  = 16;
+    tHttpServerConfig.stack_size        = 8192;
+    tHttpServerConfig.uri_match_fn      = httpd_uri_match_wildcard;
+    tHttpServerConfig.send_wait_timeout = 30;
+    tHttpServerConfig.recv_wait_timeout = 30;
 
-    if (ESP_OK == espErr) 
+    httpd_handle_t hHttpServer = NULL;
+
+    espRslt = httpd_start(&hHttpServer, &tHttpServerConfig);
+
+    if (ESP_OK == espRslt)
     {
-        espErr = httpd_register_uri_handler(server, &wifi_config_get);
+        espRslt = Ws_React_RegisterRoutes(hHttpServer);
     }
 
-    if(ESP_OK == espErr)
+    if (ESP_OK == espRslt)
     {
-        espErr =  httpd_register_uri_handler(server, &wifi_config_post);
-    } 
+        WIFI_CONFIG_API_PARAMS_T tApiParams = { .hWiFiManager = hWiFiManager };
+        espRslt = WiFiConfigAPI_Init(&tApiParams, &s_hWifiConfigApi);
+    }
 
-    return espErr;
+    if (ESP_OK == espRslt)
+    {
+        espRslt = WiFiConfigAPI_Register(s_hWifiConfigApi, hHttpServer);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        ESP_LOGI(TAG, "AP HTTP server started (React + WiFi Config API)");
+    }
+
+    return espRslt;
 }

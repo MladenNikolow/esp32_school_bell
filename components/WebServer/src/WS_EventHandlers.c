@@ -1,10 +1,73 @@
 #include "WS_EventHandlers.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_wifi.h"
 #include "esp_wifi_types.h"
+#include "esp_timer.h"
 #include "WiFi_Manager_API.h"
 
 static const char* TAG = "WS_EVENT_HANDLERS";
+
+/* ----------------------------------------------------------------
+   Reconnect timer — exponential back-off retries for STA mode.
+
+   Delay schedule (doubles each attempt, capped at MAX):
+     attempt 0 :  5 s
+     attempt 1 : 10 s
+     attempt 2 : 20 s
+     attempt 3 : 40 s
+     attempt 4+: 60 s  (capped)
+   ---------------------------------------------------------------- */
+#define WS_RECONNECT_DELAY_MIN_MS    5000ULL
+#define WS_RECONNECT_DELAY_MAX_MS   60000ULL
+
+static esp_timer_handle_t s_hReconnectTimer = NULL;
+static uint32_t           s_ulRetryCount    = 0;
+
+static void
+ws_ReconnectTimerCb(void* pvArg)
+{
+    (void)pvArg;
+    ESP_LOGI(TAG, "Retrying WiFi connection (attempt %" PRIu32 ")...", s_ulRetryCount);
+    (void)esp_wifi_connect();
+}
+
+static void
+ws_ScheduleReconnect(void)
+{
+    /* Exponential back-off: delay = MIN * 2^retries, capped at MAX */
+    uint64_t ullDelayMs = WS_RECONNECT_DELAY_MIN_MS;
+    for (uint32_t i = 0; i < s_ulRetryCount; i++)
+    {
+        ullDelayMs <<= 1U;
+        if (ullDelayMs >= WS_RECONNECT_DELAY_MAX_MS)
+        {
+            ullDelayMs = WS_RECONNECT_DELAY_MAX_MS;
+            break;
+        }
+    }
+
+    s_ulRetryCount++;
+
+    if (NULL == s_hReconnectTimer)
+    {
+        const esp_timer_create_args_t tTimerArgs = {
+            .callback = ws_ReconnectTimerCb,
+            .name     = "wifi_reconnect",
+        };
+        (void)esp_timer_create(&tTimerArgs, &s_hReconnectTimer);
+    }
+    else
+    {
+        /* Cancel any already-pending retry before arming a new one */
+        (void)esp_timer_stop(s_hReconnectTimer);
+    }
+
+    ESP_LOGI(TAG, "WiFi reconnect scheduled in %" PRIu64 " ms (retry #%" PRIu32 ")",
+             ullDelayMs, s_ulRetryCount);
+
+    (void)esp_timer_start_once(s_hReconnectTimer, ullDelayMs * 1000ULL /* µs */);
+}
 
 void 
 Ws_EventHandler_StaIP(void* pvArg, 
@@ -20,6 +83,13 @@ Ws_EventHandler_StaIP(void* pvArg,
     {
         case IP_EVENT_STA_GOT_IP:
         {
+            /* Network is back — reset retry state */
+            s_ulRetryCount = 0;
+            if (NULL != s_hReconnectTimer)
+            {
+                (void)esp_timer_stop(s_hReconnectTimer);
+            }
+
             ip_event_got_ip_t* tData = (ip_event_got_ip_t*) pvEventData;
             if(NULL != tData)
             {
@@ -51,11 +121,33 @@ Ws_EventHandler_StaWiFi(void* pvArg,
     {
         case WIFI_EVENT_STA_DISCONNECTED:
         {
-            ESP_LOGI(TAG, "Station disconnected, clearing saved WiFi credentials.");
-            (void)WiFi_Manager_ClearCredentials();   
+            wifi_event_sta_disconnected_t* ptDiscData = (wifi_event_sta_disconnected_t*)pvEventData;
+            uint8_t ucReason = ptDiscData->reason;
 
-            ESP_LOGI(TAG, "The device is restareted in AP mode again.");
-            esp_restart();
+            /* Only genuine credential failures warrant clearing NVS and dropping
+               back to AP setup mode.  Everything else (router reboot, signal loss,
+               AP not found yet, etc.) is treated as a temporary outage and retried
+               with exponential back-off.                                           */
+            bool fIsCredentialError = (ucReason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
+                                       ucReason == WIFI_REASON_AUTH_FAIL               ||
+                                       ucReason == WIFI_REASON_HANDSHAKE_TIMEOUT);
+
+            if (fIsCredentialError)
+            {
+                ESP_LOGI(TAG, "WiFi credential error (reason=%d) — clearing credentials and restarting.", (int)ucReason);
+                (void)WiFi_Manager_ClearCredentials();
+                esp_restart();
+            }
+            else
+            {
+                ESP_LOGI(TAG, "WiFi disconnected (reason=%d) — will retry with back-off.", (int)ucReason);
+                ws_ScheduleReconnect();
+            }
+            break;
+        }
+
+        default:
+        {
             break;
         }
     }
