@@ -3,9 +3,9 @@ idf_component_register(
         "src/WS_API.c"
         "src/WS_EventHandlers.c"
         "src/AP/WS_AccessPoint.c"
+        "src/AP/RestAPI/WS_WiFiConfigAPI.c"
         "src/STA/WS_Station.c"
         "src/Auth/WS_Auth.c"
-        "src/Pages/WiFiConfig/WS_WifiConfigPage.c"
         "src/React/Ws_React.c"
         "src/React/WS_React_FileServer.c"
         "src/React/WS_React_Routes.c"
@@ -15,6 +15,7 @@ idf_component_register(
         esp_http_server
         esp_wifi
         esp_event
+        esp_timer
         nvs_flash
         json
         WiFi_Manager
