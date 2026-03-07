@@ -9,6 +9,7 @@
 #include "esp_wifi.h"
 #include "esp_system.h"
 #include "cJSON.h"
+#include "WS_EventHandlers.h"
 
 static const char* TAG = "WIFI_CONFIG_API";
 
@@ -225,12 +226,20 @@ wifiConfigApi_GetNetworks(httpd_req_t* ptReq)
 {
     (void)ptReq->user_ctx;
 
+    /* Suspend the STA reconnect timer so that esp_wifi_connect() does not
+       fire while we are scanning.  Disconnect any in-progress connection
+       attempt to free the radio, then scan.  Resume reconnection after. */
+    Ws_EventHandlers_SuspendReconnect();
+    (void)esp_wifi_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(100));
+
     /* Blocking scan — runs inside the httpd task, typically takes 1–2 s */
     esp_err_t espErr = esp_wifi_scan_start(NULL, true);
     if (ESP_OK != espErr)
     {
         ESP_LOGE(TAG, "WiFi scan start failed: %s", esp_err_to_name(espErr));
         httpd_resp_send_err(ptReq, HTTPD_500_INTERNAL_SERVER_ERROR, "Scan failed");
+        Ws_EventHandlers_ResumeReconnect();
         return espErr;
     }
 
@@ -239,6 +248,7 @@ wifiConfigApi_GetNetworks(httpd_req_t* ptReq)
     if (NULL == ptApRecords)
     {
         httpd_resp_send_err(ptReq, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
+        Ws_EventHandlers_ResumeReconnect();
         return ESP_ERR_NO_MEM;
     }
 
@@ -248,6 +258,7 @@ wifiConfigApi_GetNetworks(httpd_req_t* ptReq)
         free(ptApRecords);
         ESP_LOGE(TAG, "Failed to get scan results: %s", esp_err_to_name(espErr));
         httpd_resp_send_err(ptReq, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to get scan results");
+        Ws_EventHandlers_ResumeReconnect();
         return espErr;
     }
 
@@ -274,6 +285,9 @@ wifiConfigApi_GetNetworks(httpd_req_t* ptReq)
 
     cJSON_Delete(ptRoot);
     free((void*)pcJson);
+
+    /* Scan complete — let reconnect attempts resume */
+    Ws_EventHandlers_ResumeReconnect();
 
     return ESP_OK;
 }

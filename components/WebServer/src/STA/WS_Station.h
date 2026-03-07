@@ -2,3 +2,6 @@
 
 esp_err_t
 WS_Station_Start(void);
+
+esp_err_t
+WS_Station_Stop(void);

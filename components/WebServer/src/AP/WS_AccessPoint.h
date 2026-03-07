@@ -3,3 +3,6 @@
 
 esp_err_t
 WS_AccessPoint_Start(WIFI_MANAGER_H hWiFiManager);
+
+esp_err_t
+WS_AccessPoint_Stop(void);

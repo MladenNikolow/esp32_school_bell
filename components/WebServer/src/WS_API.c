@@ -252,6 +252,10 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
                                             ptRsc->hNetif, 
                                             NULL);
     }
+
+    /* Give the event handlers a reference to the WiFi Manager so the
+       fallback AP can be started if the STA connection drops. */
+    Ws_EventHandlers_SetWiFiManager(ptRsc->tParams.hWiFiManager);
                              
     if(ESP_OK == espErr) 
     {
