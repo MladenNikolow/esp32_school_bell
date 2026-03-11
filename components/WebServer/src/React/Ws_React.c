@@ -12,7 +12,5 @@ Ws_React_RegisterStaticFiles(httpd_handle_t hHttpServer)
 esp_err_t
 Ws_React_RegisterApiHandlers(httpd_handle_t hHttpServer)
 {
-    // Auth endpoints only — ExampleAPI is registered separately
-    // by the caller after ExampleAPI_Init (see WS_Station.c).
     return auth_register_endpoints(hHttpServer);
 }

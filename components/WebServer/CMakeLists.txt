@@ -9,7 +9,6 @@ idf_component_register(
         "src/React/Ws_React.c"
         "src/React/WS_React_FileServer.c"
         "src/React/WS_React_Routes.c"
-        "src/React/RestAPI/Example/ExampleAPI.c"
     INCLUDE_DIRS "src"
     REQUIRES
         esp_http_server

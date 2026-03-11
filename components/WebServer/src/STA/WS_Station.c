@@ -1,13 +1,11 @@
 #include "WS_Station.h"
 #include "esp_http_server.h"
 #include "React/Ws_React.h"
-#include "React/RestAPI/Example/ExampleAPI.h"
 
 #include "esp_log.h"
 
 static const char* TAG = "WS_STATION";
 
-static EXAMPLE_API_H s_hExampleApi  = NULL;
 static httpd_handle_t s_hHttpServer = NULL;
 
 esp_err_t
@@ -40,20 +38,6 @@ WS_Station_Start(void)
     if (ESP_OK == espRslt)
     {
         espRslt = Ws_React_RegisterApiHandlers(s_hHttpServer);
-    }
-
-    if (ESP_OK == espRslt)
-    {
-        if (NULL == s_hExampleApi)
-        {
-            EXAMPLE_API_PARAMS_T tExampleParams = {0};
-            espRslt = ExampleAPI_Init(&tExampleParams, &s_hExampleApi);
-        }
-    }
-
-    if (ESP_OK == espRslt)
-    {
-        espRslt = ExampleAPI_Register(s_hExampleApi, s_hHttpServer);
     }
 
     // if (ESP_OK == espErr)

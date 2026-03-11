@@ -43,7 +43,7 @@ static bool            s_fFallbackApActive    = false;
 static esp_netif_t*    s_hApNetif             = NULL;
 static bool            s_fReconnectSuspended  = false;
 
-static void ws_ScheduleReconnect(void);
+static esp_err_t ws_ScheduleReconnect(void);
 
 void
 Ws_EventHandlers_SetWiFiManager(WIFI_MANAGER_H hWiFiManager)
@@ -70,15 +70,19 @@ Ws_EventHandlers_ResumeReconnect(void)
     s_fReconnectSuspended = false;
 
     ESP_LOGI(TAG, "STA reconnect resumed.");
-    ws_ScheduleReconnect();
+    esp_err_t espErr = ws_ScheduleReconnect();
+    if (ESP_OK != espErr)
+    {
+        ESP_LOGE(TAG, "Failed to schedule reconnect: %s", esp_err_to_name(espErr));
+    }
 }
 
-static void
+static esp_err_t
 ws_StartFallbackAp(void)
 {
     if (s_fFallbackApActive || (NULL == s_hWiFiManager))
     {
-        return;
+        return ESP_OK;
     }
 
     ESP_LOGI(TAG, "Starting fallback AP for WiFi reconfiguration...");
@@ -90,7 +94,7 @@ ws_StartFallbackAp(void)
         if (NULL == s_hApNetif)
         {
             ESP_LOGE(TAG, "Failed to create AP netif");
-            return;
+            return ESP_ERR_NO_MEM;
         }
     }
 
@@ -113,51 +117,67 @@ ws_StartFallbackAp(void)
     (void)WS_Station_Stop();
 
     /* Switch to APSTA so the STA keeps retrying while the AP is visible */
-    esp_err_t err = esp_wifi_set_mode(WIFI_MODE_APSTA);
-    if (ESP_OK != err)
+    esp_err_t espErr = esp_wifi_set_mode(WIFI_MODE_APSTA);
+    if (ESP_OK != espErr)
     {
-        ESP_LOGE(TAG, "Failed to set APSTA mode: %s", esp_err_to_name(err));
-        return;
+        ESP_LOGE(TAG, "Failed to set APSTA mode: %s", esp_err_to_name(espErr));
+        return espErr;
     }
 
-    err = esp_wifi_set_config(WIFI_IF_AP, &tConfigAp);
-    if (ESP_OK != err)
+    espErr = esp_wifi_set_config(WIFI_IF_AP, &tConfigAp);
+    if (ESP_OK != espErr)
     {
-        ESP_LOGE(TAG, "Failed to configure fallback AP: %s", esp_err_to_name(err));
-        return;
+        ESP_LOGE(TAG, "Failed to configure fallback AP: %s", esp_err_to_name(espErr));
+        return espErr;
     }
 
     /* Start the AP HTTP server with config pages */
-    err = WS_AccessPoint_Start(s_hWiFiManager);
-    if (ESP_OK != err)
+    espErr = WS_AccessPoint_Start(s_hWiFiManager);
+    if (ESP_OK != espErr)
     {
-        ESP_LOGE(TAG, "Failed to start AP HTTP server: %s", esp_err_to_name(err));
-        return;
+        ESP_LOGE(TAG, "Failed to start AP HTTP server: %s", esp_err_to_name(espErr));
+        return espErr;
     }
 
     s_fFallbackApActive = true;
     ESP_LOGI(TAG, "Fallback AP active — connect to configure WiFi.");
+    return ESP_OK;
 }
 
-static void
+static esp_err_t
 ws_StopFallbackAp(void)
 {
     if (!s_fFallbackApActive)
     {
-        return;
+        return ESP_OK;
     }
 
     ESP_LOGI(TAG, "STA reconnected — stopping fallback AP.");
 
-    (void)WS_AccessPoint_Stop();
+    esp_err_t espErr = WS_AccessPoint_Stop();
+    if (ESP_OK != espErr)
+    {
+        ESP_LOGE(TAG, "Failed to stop AP HTTP server: %s", esp_err_to_name(espErr));
+    }
 
     /* Revert to STA-only mode */
-    (void)esp_wifi_set_mode(WIFI_MODE_STA);
+    esp_err_t espErrMode = esp_wifi_set_mode(WIFI_MODE_STA);
+    if (ESP_OK != espErrMode)
+    {
+        ESP_LOGE(TAG, "Failed to revert to STA mode: %s", esp_err_to_name(espErrMode));
+        if (ESP_OK == espErr) { espErr = espErrMode; }
+    }
 
     /* Bring the STA HTTP server back */
-    (void)WS_Station_Start();
+    esp_err_t espErrSta = WS_Station_Start();
+    if (ESP_OK != espErrSta)
+    {
+        ESP_LOGE(TAG, "Failed to restart STA HTTP server: %s", esp_err_to_name(espErrSta));
+        if (ESP_OK == espErr) { espErr = espErrSta; }
+    }
 
     s_fFallbackApActive = false;
+    return espErr;
 }
 
 static void
@@ -168,7 +188,7 @@ ws_ReconnectTimerCb(void* pvArg)
     (void)esp_wifi_connect();
 }
 
-static void
+static esp_err_t
 ws_ScheduleReconnect(void)
 {
     /* Exponential back-off: delay = MIN * 2^retries, capped at MAX */
@@ -185,37 +205,54 @@ ws_ScheduleReconnect(void)
 
     s_ulRetryCount++;
 
+    esp_err_t espErr = ESP_OK;
+
     if (NULL == s_hReconnectTimer)
     {
         const esp_timer_create_args_t tTimerArgs = {
             .callback = ws_ReconnectTimerCb,
             .name     = "wifi_reconnect",
         };
-        (void)esp_timer_create(&tTimerArgs, &s_hReconnectTimer);
+        espErr = esp_timer_create(&tTimerArgs, &s_hReconnectTimer);
+        if (ESP_OK != espErr)
+        {
+            ESP_LOGE(TAG, "Failed to create reconnect timer: %s", esp_err_to_name(espErr));
+            return espErr;
+        }
     }
     else
     {
-        /* Cancel any already-pending retry before arming a new one */
-        (void)esp_timer_stop(s_hReconnectTimer);
+        /* Cancel any already-pending retry before arming a new one.
+           ESP_ERR_INVALID_STATE means the timer wasn't running — that's expected. */
+        esp_err_t espStopErr = esp_timer_stop(s_hReconnectTimer);
+        if (ESP_OK != espStopErr && ESP_ERR_INVALID_STATE != espStopErr)
+        {
+            ESP_LOGW(TAG, "Failed to stop reconnect timer: %s", esp_err_to_name(espStopErr));
+        }
     }
 
     ESP_LOGI(TAG, "WiFi reconnect scheduled in %" PRIu64 " ms (retry #%" PRIu32 ")",
              ullDelayMs, s_ulRetryCount);
 
-    (void)esp_timer_start_once(s_hReconnectTimer, ullDelayMs * 1000ULL /* µs */);
+    espErr = esp_timer_start_once(s_hReconnectTimer, ullDelayMs * 1000ULL /* µs */);
+    if (ESP_OK != espErr)
+    {
+        ESP_LOGE(TAG, "Failed to start reconnect timer: %s", esp_err_to_name(espErr));
+    }
+
+    return espErr;
 }
 
-static void
+static esp_err_t
 ws_ScheduleReconnectIfAllowed(void)
 {
     if (!s_fReconnectSuspended)
     {
-        ws_ScheduleReconnect();
+        return ws_ScheduleReconnect();
     }
-    else
-    {
-        ESP_LOGI(TAG, "Reconnect skipped (suspended for scan).");
-    }
+
+    ESP_LOGI(TAG, "Reconnect skipped (suspended for scan).");
+    return ESP_OK;
 }
 
 void 
@@ -240,7 +277,11 @@ Ws_EventHandler_StaIP(void* pvArg,
             }
 
             /* Tear down the fallback AP if it was active */
-            ws_StopFallbackAp();
+            esp_err_t espStopErr = ws_StopFallbackAp();
+            if (ESP_OK != espStopErr)
+            {
+                ESP_LOGE(TAG, "Failed to stop fallback AP: %s", esp_err_to_name(espStopErr));
+            }
 
             ip_event_got_ip_t* tData = (ip_event_got_ip_t*) pvEventData;
             if(NULL != tData)
@@ -292,7 +333,11 @@ Ws_EventHandler_StaWiFi(void* pvArg,
                 if (s_fFallbackApActive)
                 {
                     ESP_LOGW(TAG, "WiFi auth error (reason=%d) while fallback AP active — retrying.", (int)ucReason);
-                    ws_ScheduleReconnectIfAllowed();
+                    esp_err_t espErr = ws_ScheduleReconnectIfAllowed();
+                    if (ESP_OK != espErr)
+                    {
+                        ESP_LOGE(TAG, "Failed to schedule reconnect: %s", esp_err_to_name(espErr));
+                    }
                 }
                 else
                 {
@@ -304,8 +349,16 @@ Ws_EventHandler_StaWiFi(void* pvArg,
             else
             {
                 ESP_LOGI(TAG, "WiFi disconnected (reason=%d) — will retry with back-off.", (int)ucReason);
-                ws_ScheduleReconnectIfAllowed();
-                ws_StartFallbackAp();
+                esp_err_t espErr = ws_ScheduleReconnectIfAllowed();
+                if (ESP_OK != espErr)
+                {
+                    ESP_LOGE(TAG, "Failed to schedule reconnect: %s", esp_err_to_name(espErr));
+                }
+                espErr = ws_StartFallbackAp();
+                if (ESP_OK != espErr)
+                {
+                    ESP_LOGE(TAG, "Failed to start fallback AP: %s", esp_err_to_name(espErr));
+                }
             }
             break;
         }
@@ -317,14 +370,3 @@ Ws_EventHandler_StaWiFi(void* pvArg,
     }
 }
 
-void 
-Ws_EventHandler_ApIP(void* pvArg, 
-                     esp_event_base_t tEventBase,
-                     int32_t ulEventId, 
-                     void* pvEventData);
-
-void 
-Ws_EventHandler_ApWiFi(void* pvArg,
-                       esp_event_base_t tEventBase,
-                       int32_t ulEventId, 
-                       void* pvEventData);

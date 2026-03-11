@@ -40,7 +40,8 @@ static const httpd_uri_t s_favicon_uri =
 // ----------------------------------------------------------------
 // Route registration
 // ----------------------------------------------------------------
-esp_err_t Ws_React_RegisterRoutes(httpd_handle_t hHttpServer)
+esp_err_t 
+Ws_React_RegisterRoutes(httpd_handle_t hHttpServer)
 {
     esp_err_t espErr = httpd_register_uri_handler(hHttpServer, &s_index_uri);
 
