@@ -11,15 +11,19 @@
 #define SCHEDULE_MAX_BELLS              100
 #define SCHEDULE_MAX_BELLS_PER_SHIFT    50
 #define SCHEDULE_MAX_HOLIDAYS           50
-#define SCHEDULE_MAX_EXCEPTION_WORKING  30
-#define SCHEDULE_MAX_EXCEPTION_HOLIDAY  30
+#define SCHEDULE_MAX_EXCEPTIONS         40
+#define SCHEDULE_MAX_CUSTOM_BELLS       30   /* bells per template or custom set */
+#define SCHEDULE_MAX_CUSTOM_BELL_SETS    5
+#define SCHEDULE_MAX_TEMPLATES           5
 #define SCHEDULE_LABEL_MAX_LEN          48
+#define SCHEDULE_TEMPLATE_NAME_LEN      32
 #define SCHEDULE_DATE_STR_LEN           11  /* "YYYY-MM-DD\0" */
 
 /* File paths */
 #define SCHEDULE_FILE_SETTINGS          "/storage/settings.json"
 #define SCHEDULE_FILE_BELLS             "/storage/schedule.json"
 #define SCHEDULE_FILE_CALENDAR          "/storage/calendar.json"
+#define SCHEDULE_FILE_TEMPLATES         "/storage/templates.json"
 #define SCHEDULE_FILE_DEFAULTS          "/react/default_schedule.json"
 
 /* ------------------------------------------------------------------ */
@@ -43,26 +47,37 @@ typedef struct
 
 typedef enum
 {
-    EXCEPTION_SCHEDULE_DEFAULT = 0,  /* Use normal shift bells */
-    EXCEPTION_SCHEDULE_CUSTOM  = 1,  /* Fully custom bell list */
-    EXCEPTION_SCHEDULE_REDUCED = 2,  /* Reduced hours with custom breaks */
-} EXCEPTION_SCHEDULE_TYPE_E;
+    EXCEPTION_ACTION_DAY_OFF       = 0,  /* No bells ring */
+    EXCEPTION_ACTION_NORMAL        = 1,  /* Normal schedule (both shifts) */
+    EXCEPTION_ACTION_FIRST_SHIFT   = 2,  /* Only first shift bells */
+    EXCEPTION_ACTION_SECOND_SHIFT  = 3,  /* Only second shift bells */
+    EXCEPTION_ACTION_TEMPLATE      = 4,  /* Use a named bell template */
+    EXCEPTION_ACTION_CUSTOM        = 5,  /* Use an ad-hoc custom bell set */
+} EXCEPTION_ACTION_E;
 
 typedef struct
 {
-    char                     acDate[SCHEDULE_DATE_STR_LEN];
-    char                     acLabel[SCHEDULE_LABEL_MAX_LEN];
-    bool                     bHasCustomBells;
-    EXCEPTION_SCHEDULE_TYPE_E eScheduleType;
-    uint32_t                 ulCustomBellCount;
-    BELL_ENTRY_T             atCustomBells[SCHEDULE_MAX_BELLS];
-} EXCEPTION_WORKING_T;
+    char               acStartDate[SCHEDULE_DATE_STR_LEN]; /* "YYYY-MM-DD" */
+    char               acEndDate[SCHEDULE_DATE_STR_LEN];   /* empty = single day */
+    char               acLabel[SCHEDULE_LABEL_MAX_LEN];
+    EXCEPTION_ACTION_E eAction;
+    int8_t             iTimeOffsetMin;    /* -120..+120: shift all bell times */
+    uint8_t            ucTemplateIdx;     /* valid when eAction == TEMPLATE */
+    uint8_t            ucCustomBellsIdx;  /* index into custom bell sets, 0xFF = none */
+} EXCEPTION_ENTRY_T;
 
 typedef struct
 {
-    char acDate[SCHEDULE_DATE_STR_LEN];
-    char acLabel[SCHEDULE_LABEL_MAX_LEN];
-} EXCEPTION_HOLIDAY_T;
+    uint8_t      ucBellCount;
+    BELL_ENTRY_T atBells[SCHEDULE_MAX_CUSTOM_BELLS];
+} EXCEPTION_CUSTOM_BELLS_T;
+
+typedef struct
+{
+    char         acName[SCHEDULE_TEMPLATE_NAME_LEN];
+    uint8_t      ucBellCount;
+    BELL_ENTRY_T atBells[SCHEDULE_MAX_CUSTOM_BELLS];
+} BELL_TEMPLATE_T;
 
 /* Settings */
 typedef struct
@@ -93,11 +108,16 @@ typedef struct
     uint32_t             ulHolidayCount;
     HOLIDAY_T            atHolidays[SCHEDULE_MAX_HOLIDAYS];
 
-    uint32_t             ulExceptionWorkingCount;
-    EXCEPTION_WORKING_T  atExceptionWorking[SCHEDULE_MAX_EXCEPTION_WORKING];
+    /* Unified exceptions */
+    uint32_t             ulExceptionCount;
+    EXCEPTION_ENTRY_T    atExceptions[SCHEDULE_MAX_EXCEPTIONS];
 
-    uint32_t             ulExceptionHolidayCount;
-    EXCEPTION_HOLIDAY_T  atExceptionHoliday[SCHEDULE_MAX_EXCEPTION_HOLIDAY];
+    uint32_t                 ulCustomBellSetCount;
+    EXCEPTION_CUSTOM_BELLS_T atCustomBellSets[SCHEDULE_MAX_CUSTOM_BELL_SETS];
+
+    /* Bell templates */
+    uint32_t             ulTemplateCount;
+    BELL_TEMPLATE_T      atTemplates[SCHEDULE_MAX_TEMPLATES];
 } SCHEDULE_DATA_T;
 
 /* ------------------------------------------------------------------ */
@@ -152,8 +172,23 @@ cJSON* Schedule_Data_HolidaysToJson(const HOLIDAY_T* ptHolidays, uint32_t ulCoun
 /**
  * @brief Serialize exceptions to cJSON (caller must cJSON_Delete).
  */
-cJSON* Schedule_Data_ExceptionsToJson(const EXCEPTION_WORKING_T* ptWork, uint32_t ulWorkCount,
-                                       const EXCEPTION_HOLIDAY_T* ptHol, uint32_t ulHolCount);
+cJSON* Schedule_Data_ExceptionsToJson(const EXCEPTION_ENTRY_T* ptExceptions, uint32_t ulCount,
+                                       const EXCEPTION_CUSTOM_BELLS_T* ptCustomSets, uint32_t ulCustomCount);
+
+/**
+ * @brief Load bell templates from SPIFFS.
+ */
+esp_err_t Schedule_Data_LoadTemplates(SCHEDULE_DATA_T* ptData);
+
+/**
+ * @brief Save bell templates to SPIFFS.
+ */
+esp_err_t Schedule_Data_SaveTemplates(const SCHEDULE_DATA_T* ptData);
+
+/**
+ * @brief Serialize bell templates to cJSON (caller must cJSON_Delete).
+ */
+cJSON* Schedule_Data_TemplatesToJson(const BELL_TEMPLATE_T* ptTemplates, uint32_t ulCount);
 
 /**
  * @brief Read the flashed default_schedule.json and return as cJSON.

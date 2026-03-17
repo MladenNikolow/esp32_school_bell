@@ -4,7 +4,8 @@
 #include "esp_wifi.h"
 #include "esp_wifi_types.h"
 #include "esp_timer.h"
-#include "WiFi_Manager_API.h"
+
+#include <string.h>
 
 static const char* TAG = "WS_EVENT_HANDLERS";
 
@@ -16,24 +17,37 @@ static const char* TAG = "WS_EVENT_HANDLERS";
      attempt 1 : 10 s
      attempt 2 : 20 s
      attempt 3 : 40 s
-     attempt 4 : 60 s  (capped)
+     attempt 4+: 60 s  (capped)
 
-   After WS_RECONNECT_MAX_RETRIES the device clears stored
-   credentials and restarts into AP-setup mode so the user can
-   reconfigure WiFi (e.g. pick a 2.4 GHz network — ESP32 does
-   not support 5 GHz).
+   Retries are **indefinite** — the device never clears stored
+   credentials on its own.  The soft-AP ("ESP32_Setup") launched
+   by ws_ConfigureSta() in APSTA mode stays reachable between
+   reconnect attempts, so a user can always connect to it and
+   submit new credentials via the web UI at 192.168.4.1.
    ---------------------------------------------------------------- */
 #define WS_RECONNECT_DELAY_MIN_MS    5000ULL
 #define WS_RECONNECT_DELAY_MAX_MS   60000ULL
-#define WS_RECONNECT_MAX_RETRIES     5U
 
-static esp_timer_handle_t s_hReconnectTimer = NULL;
-static uint32_t           s_ulRetryCount    = 0;
+static esp_timer_handle_t s_hReconnectTimer  = NULL;
+static uint32_t           s_ulRetryCount     = 0;
+static uint32_t           s_ulApClientCount  = 0;
 
 static void
 ws_ReconnectTimerCb(void* pvArg)
 {
     (void)pvArg;
+
+    /* A client is connected to the soft-AP — do NOT call esp_wifi_connect()
+       because the STA connection / channel-scan disrupts the AP interface
+       (WPA handshake failures, DHCP timeouts).  The retry will be
+       re-scheduled once the last AP client disconnects.                    */
+    if (s_ulApClientCount > 0U)
+    {
+        ESP_LOGI(TAG, "STA reconnect deferred — %" PRIu32 " AP client(s) connected.",
+                 s_ulApClientCount);
+        return;
+    }
+
     ESP_LOGI(TAG, "Retrying WiFi connection (attempt %" PRIu32 ")...", s_ulRetryCount);
     (void)esp_wifi_connect();
 }
@@ -41,19 +55,10 @@ ws_ReconnectTimerCb(void* pvArg)
 static void
 ws_ScheduleReconnect(void)
 {
-    /* All retries exhausted — fall back to AP setup mode */
-    if (s_ulRetryCount >= WS_RECONNECT_MAX_RETRIES)
-    {
-        ESP_LOGW(TAG,
-                 "WiFi connection failed after %" PRIu32 " retries — "
-                 "clearing credentials and restarting into AP setup mode.",
-                 s_ulRetryCount);
-        (void)WiFi_Manager_ClearCredentials();
-        esp_restart();
-        return;   /* unreachable, but keeps intent clear */
-    }
-
-    /* Exponential back-off: delay = MIN * 2^retries, capped at MAX */
+    /* Exponential back-off: delay = MIN * 2^retries, capped at MAX.
+       Retries are indefinite — the soft-AP ("ESP32_Setup") started
+       in APSTA mode by ws_ConfigureSta() remains reachable between
+       attempts so a user can always reconfigure credentials.        */
     uint64_t ullDelayMs = WS_RECONNECT_DELAY_MIN_MS;
     for (uint32_t i = 0; i < s_ulRetryCount; i++)
     {
@@ -81,8 +86,8 @@ ws_ScheduleReconnect(void)
         (void)esp_timer_stop(s_hReconnectTimer);
     }
 
-    ESP_LOGI(TAG, "WiFi reconnect scheduled in %" PRIu64 " ms (retry #%" PRIu32 " of %u)",
-             ullDelayMs, s_ulRetryCount, WS_RECONNECT_MAX_RETRIES);
+    ESP_LOGI(TAG, "WiFi reconnect scheduled in %" PRIu64 " ms (retry #%" PRIu32 ")",
+             ullDelayMs, s_ulRetryCount);
 
     (void)esp_timer_start_once(s_hReconnectTimer, ullDelayMs * 1000ULL /* µs */);
 }
@@ -142,25 +147,27 @@ Ws_EventHandler_StaWiFi(void* pvArg,
             wifi_event_sta_disconnected_t* ptDiscData = (wifi_event_sta_disconnected_t*)pvEventData;
             uint8_t ucReason = ptDiscData->reason;
 
-            /* Only genuine credential failures warrant clearing NVS and dropping
-               back to AP setup mode.  Everything else (router reboot, signal loss,
-               AP not found yet, etc.) is treated as a temporary outage and retried
-               with exponential back-off.                                           */
+            /* Classify the disconnect reason for logging purposes only.
+               ALL reasons are retried indefinitely with exponential
+               back-off — the soft-AP stays reachable between attempts
+               so the user can reconfigure credentials at any time.     */
             bool fIsCredentialError = (ucReason == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
                                        ucReason == WIFI_REASON_AUTH_FAIL               ||
-                                       ucReason == WIFI_REASON_HANDSHAKE_TIMEOUT);
+                                       ucReason == WIFI_REASON_HANDSHAKE_TIMEOUT       ||
+                                       ucReason == WIFI_REASON_NO_AP_FOUND);
 
             if (fIsCredentialError)
             {
-                ESP_LOGI(TAG, "WiFi credential error (reason=%d) — clearing credentials and restarting.", (int)ucReason);
-                (void)WiFi_Manager_ClearCredentials();
-                esp_restart();
+                ESP_LOGW(TAG, "WiFi credential/network error (reason=%d) — "
+                              "retrying with back-off. Connect to 'ESP32_Setup' "
+                              "AP at 192.168.4.1 to reconfigure.", (int)ucReason);
             }
             else
             {
                 ESP_LOGI(TAG, "WiFi disconnected (reason=%d) — will retry with back-off.", (int)ucReason);
-                ws_ScheduleReconnect();
             }
+
+            ws_ScheduleReconnect();
             break;
         }
 
@@ -172,13 +179,63 @@ Ws_EventHandler_StaWiFi(void* pvArg,
 }
 
 void 
-Ws_EventHandler_ApIP(void* pvArg, 
-                     esp_event_base_t tEventBase,
-                     int32_t ulEventId, 
-                     void* pvEventData);
-
-void 
 Ws_EventHandler_ApWiFi(void* pvArg,
                        esp_event_base_t tEventBase,
                        int32_t ulEventId, 
-                       void* pvEventData);
+                       void* pvEventData)
+{
+    (void)pvArg;
+    (void)tEventBase;
+
+    switch (ulEventId)
+    {
+        case WIFI_EVENT_AP_STACONNECTED:
+        {
+            wifi_event_ap_staconnected_t* ptData =
+                (wifi_event_ap_staconnected_t*)pvEventData;
+
+            s_ulApClientCount++;
+            ESP_LOGI(TAG, "AP client connected (AID=%d, total=%" PRIu32
+                          ") — STA reconnect paused.",
+                     (int)ptData->aid, s_ulApClientCount);
+
+            /* Stop the pending reconnect timer so that esp_wifi_connect()
+               is not called while an AP client needs a stable link.       */
+            if (NULL != s_hReconnectTimer)
+            {
+                (void)esp_timer_stop(s_hReconnectTimer);
+            }
+
+            /* Disconnect the STA interface to stop any in-progress
+               connection attempt that would cause channel hopping.  */
+            (void)esp_wifi_disconnect();
+            break;
+        }
+
+        case WIFI_EVENT_AP_STADISCONNECTED:
+        {
+            wifi_event_ap_stadisconnected_t* ptData =
+                (wifi_event_ap_stadisconnected_t*)pvEventData;
+
+            if (s_ulApClientCount > 0U)
+            {
+                s_ulApClientCount--;
+            }
+            ESP_LOGI(TAG, "AP client disconnected (AID=%d, remaining=%" PRIu32 ").",
+                     (int)ptData->aid, s_ulApClientCount);
+
+            /* Last AP client left — resume STA reconnect attempts.  */
+            if (0U == s_ulApClientCount)
+            {
+                ESP_LOGI(TAG, "No AP clients — resuming STA reconnect.");
+                ws_ScheduleReconnect();
+            }
+            break;
+        }
+
+        default:
+        {
+            break;
+        }
+    }
+}

@@ -250,19 +250,134 @@ Schedule_Data_SaveBells(const SCHEDULE_SHIFT_T* ptFirst, const SCHEDULE_SHIFT_T*
 /* Calendar                                                            */
 /* ================================================================== */
 
+/** Map action enum to JSON string */
+static const char*
+actionToStr(EXCEPTION_ACTION_E eAction)
+{
+    switch (eAction)
+    {
+        case EXCEPTION_ACTION_DAY_OFF:       return "day-off";
+        case EXCEPTION_ACTION_NORMAL:        return "normal";
+        case EXCEPTION_ACTION_FIRST_SHIFT:   return "first-shift";
+        case EXCEPTION_ACTION_SECOND_SHIFT:  return "second-shift";
+        case EXCEPTION_ACTION_TEMPLATE:      return "template";
+        case EXCEPTION_ACTION_CUSTOM:        return "custom";
+        default:                             return "day-off";
+    }
+}
+
+/** Map JSON string to action enum */
+static EXCEPTION_ACTION_E
+strToAction(const char* pcStr)
+{
+    if (!pcStr) return EXCEPTION_ACTION_DAY_OFF;
+    if (strcmp(pcStr, "normal")       == 0) return EXCEPTION_ACTION_NORMAL;
+    if (strcmp(pcStr, "first-shift")  == 0) return EXCEPTION_ACTION_FIRST_SHIFT;
+    if (strcmp(pcStr, "second-shift") == 0) return EXCEPTION_ACTION_SECOND_SHIFT;
+    if (strcmp(pcStr, "template")     == 0) return EXCEPTION_ACTION_TEMPLATE;
+    if (strcmp(pcStr, "custom")       == 0) return EXCEPTION_ACTION_CUSTOM;
+    return EXCEPTION_ACTION_DAY_OFF;
+}
+
+/** Migrate old split format to unified exceptions */
+static void
+migrateOldExceptions(cJSON* ptRoot, SCHEDULE_DATA_T* ptData)
+{
+    /* Old exceptionWorking → unified entries */
+    cJSON* ptExWork = cJSON_GetObjectItem(ptRoot, "exceptionWorking");
+    if (ptExWork && cJSON_IsArray(ptExWork))
+    {
+        int iSize = cJSON_GetArraySize(ptExWork);
+        for (int i = 0; i < iSize && ptData->ulExceptionCount < SCHEDULE_MAX_EXCEPTIONS; i++)
+        {
+            cJSON* ptItem = cJSON_GetArrayItem(ptExWork, i);
+            cJSON* ptDate = cJSON_GetObjectItem(ptItem, "date");
+            if (!ptDate || !cJSON_IsString(ptDate)) continue;
+
+            EXCEPTION_ENTRY_T* ptEx = &ptData->atExceptions[ptData->ulExceptionCount];
+            memset(ptEx, 0, sizeof(EXCEPTION_ENTRY_T));
+            strncpy(ptEx->acStartDate, ptDate->valuestring, SCHEDULE_DATE_STR_LEN - 1);
+            ptEx->ucCustomBellsIdx = 0xFF;
+
+            cJSON* ptLbl = cJSON_GetObjectItem(ptItem, "label");
+            if (ptLbl && cJSON_IsString(ptLbl))
+                strncpy(ptEx->acLabel, ptLbl->valuestring, SCHEDULE_LABEL_MAX_LEN - 1);
+
+            /* Map old scheduleType to new action */
+            cJSON* ptSchedType = cJSON_GetObjectItem(ptItem, "scheduleType");
+            const char* pcType = ptSchedType && cJSON_IsString(ptSchedType) ? ptSchedType->valuestring : "default";
+
+            cJSON* ptCustom = cJSON_GetObjectItem(ptItem, "customBells");
+            bool bHasCustom = ptCustom && cJSON_IsArray(ptCustom) && cJSON_GetArraySize(ptCustom) > 0;
+
+            if (strcmp(pcType, "custom") == 0 || strcmp(pcType, "reduced") == 0)
+            {
+                if (bHasCustom && ptData->ulCustomBellSetCount < SCHEDULE_MAX_CUSTOM_BELL_SETS)
+                {
+                    ptEx->eAction = EXCEPTION_ACTION_CUSTOM;
+                    ptEx->ucCustomBellsIdx = (uint8_t)ptData->ulCustomBellSetCount;
+                    EXCEPTION_CUSTOM_BELLS_T* ptSet = &ptData->atCustomBellSets[ptData->ulCustomBellSetCount];
+                    uint32_t ulTmpCount = 0;
+                    parseBellArray(ptCustom, ptSet->atBells, &ulTmpCount, SCHEDULE_MAX_CUSTOM_BELLS);
+                    ptSet->ucBellCount = (uint8_t)ulTmpCount;
+                    ptData->ulCustomBellSetCount++;
+                }
+                else
+                {
+                    ptEx->eAction = EXCEPTION_ACTION_NORMAL;
+                }
+            }
+            else
+            {
+                ptEx->eAction = EXCEPTION_ACTION_NORMAL;
+            }
+
+            ptData->ulExceptionCount++;
+        }
+    }
+
+    /* Old exceptionHoliday → unified entries with DAY_OFF action */
+    cJSON* ptExHol = cJSON_GetObjectItem(ptRoot, "exceptionHoliday");
+    if (ptExHol && cJSON_IsArray(ptExHol))
+    {
+        int iSize = cJSON_GetArraySize(ptExHol);
+        for (int i = 0; i < iSize && ptData->ulExceptionCount < SCHEDULE_MAX_EXCEPTIONS; i++)
+        {
+            cJSON* ptItem = cJSON_GetArrayItem(ptExHol, i);
+            cJSON* ptDate = cJSON_GetObjectItem(ptItem, "date");
+            if (!ptDate || !cJSON_IsString(ptDate)) continue;
+
+            EXCEPTION_ENTRY_T* ptEx = &ptData->atExceptions[ptData->ulExceptionCount];
+            memset(ptEx, 0, sizeof(EXCEPTION_ENTRY_T));
+            strncpy(ptEx->acStartDate, ptDate->valuestring, SCHEDULE_DATE_STR_LEN - 1);
+            ptEx->eAction = EXCEPTION_ACTION_DAY_OFF;
+            ptEx->ucCustomBellsIdx = 0xFF;
+
+            cJSON* ptLbl = cJSON_GetObjectItem(ptItem, "label");
+            if (ptLbl && cJSON_IsString(ptLbl))
+                strncpy(ptEx->acLabel, ptLbl->valuestring, SCHEDULE_LABEL_MAX_LEN - 1);
+
+            ptData->ulExceptionCount++;
+        }
+    }
+
+    ESP_LOGI(TAG, "Migrated old format: %"PRIu32" exceptions, %"PRIu32" custom bell sets",
+             ptData->ulExceptionCount, ptData->ulCustomBellSetCount);
+}
+
 esp_err_t
 Schedule_Data_LoadCalendar(SCHEDULE_DATA_T* ptData)
 {
     if (NULL == ptData) return ESP_ERR_INVALID_ARG;
 
     ptData->ulHolidayCount = 0;
-    ptData->ulExceptionWorkingCount = 0;
-    ptData->ulExceptionHolidayCount = 0;
+    ptData->ulExceptionCount = 0;
+    ptData->ulCustomBellSetCount = 0;
 
     cJSON* ptRoot = readJsonFile(SCHEDULE_FILE_CALENDAR);
     if (NULL == ptRoot) return ESP_ERR_NOT_FOUND;
 
-    /* Holidays */
+    /* Holidays (unchanged) */
     cJSON* ptHolidays = cJSON_GetObjectItem(ptRoot, "holidays");
     if (ptHolidays && cJSON_IsArray(ptHolidays))
     {
@@ -291,83 +406,82 @@ Schedule_Data_LoadCalendar(SCHEDULE_DATA_T* ptData)
         }
     }
 
-    /* Exception working */
-    cJSON* ptExWork = cJSON_GetObjectItem(ptRoot, "exceptionWorking");
-    if (ptExWork && cJSON_IsArray(ptExWork))
+    /* Check for new unified format first */
+    cJSON* ptExceptions = cJSON_GetObjectItem(ptRoot, "exceptions");
+    if (ptExceptions && cJSON_IsArray(ptExceptions))
     {
-        int iSize = cJSON_GetArraySize(ptExWork);
-        if ((uint32_t)iSize > SCHEDULE_MAX_EXCEPTION_WORKING) iSize = SCHEDULE_MAX_EXCEPTION_WORKING;
+        /* New unified format */
+        int iSize = cJSON_GetArraySize(ptExceptions);
+        if ((uint32_t)iSize > SCHEDULE_MAX_EXCEPTIONS) iSize = SCHEDULE_MAX_EXCEPTIONS;
 
         for (int i = 0; i < iSize; i++)
         {
-            cJSON* ptItem = cJSON_GetArrayItem(ptExWork, i);
-            cJSON* ptDate = cJSON_GetObjectItem(ptItem, "date");
-            cJSON* ptLbl  = cJSON_GetObjectItem(ptItem, "label");
+            cJSON* ptItem = cJSON_GetArrayItem(ptExceptions, i);
+            cJSON* ptStart = cJSON_GetObjectItem(ptItem, "startDate");
+            if (!ptStart || !cJSON_IsString(ptStart)) continue;
 
-            if (ptDate && cJSON_IsString(ptDate))
+            EXCEPTION_ENTRY_T* ptEx = &ptData->atExceptions[ptData->ulExceptionCount];
+            memset(ptEx, 0, sizeof(EXCEPTION_ENTRY_T));
+            strncpy(ptEx->acStartDate, ptStart->valuestring, SCHEDULE_DATE_STR_LEN - 1);
+            ptEx->ucCustomBellsIdx = 0xFF;
+
+            cJSON* ptEnd = cJSON_GetObjectItem(ptItem, "endDate");
+            if (ptEnd && cJSON_IsString(ptEnd))
+                strncpy(ptEx->acEndDate, ptEnd->valuestring, SCHEDULE_DATE_STR_LEN - 1);
+
+            cJSON* ptLbl = cJSON_GetObjectItem(ptItem, "label");
+            if (ptLbl && cJSON_IsString(ptLbl))
+                strncpy(ptEx->acLabel, ptLbl->valuestring, SCHEDULE_LABEL_MAX_LEN - 1);
+
+            cJSON* ptAction = cJSON_GetObjectItem(ptItem, "action");
+            ptEx->eAction = strToAction(ptAction && cJSON_IsString(ptAction) ? ptAction->valuestring : NULL);
+
+            cJSON* ptOffset = cJSON_GetObjectItem(ptItem, "timeOffsetMin");
+            if (ptOffset && cJSON_IsNumber(ptOffset))
             {
-                EXCEPTION_WORKING_T* ptEx = &ptData->atExceptionWorking[ptData->ulExceptionWorkingCount];
-                strncpy(ptEx->acDate, ptDate->valuestring, SCHEDULE_DATE_STR_LEN - 1);
-                memset(ptEx->acLabel, 0, SCHEDULE_LABEL_MAX_LEN);
-                if (ptLbl && cJSON_IsString(ptLbl))
-                {
-                    strncpy(ptEx->acLabel, ptLbl->valuestring, SCHEDULE_LABEL_MAX_LEN - 1);
-                }
+                int iOff = ptOffset->valueint;
+                if (iOff < -120) iOff = -120;
+                if (iOff > 120) iOff = 120;
+                ptEx->iTimeOffsetMin = (int8_t)iOff;
+            }
 
-                /* Schedule type */
-                ptEx->eScheduleType = EXCEPTION_SCHEDULE_DEFAULT;
-                cJSON* ptSchedType = cJSON_GetObjectItem(ptItem, "scheduleType");
-                if (ptSchedType && cJSON_IsString(ptSchedType))
-                {
-                    if (strcmp(ptSchedType->valuestring, "custom") == 0)
-                        ptEx->eScheduleType = EXCEPTION_SCHEDULE_CUSTOM;
-                    else if (strcmp(ptSchedType->valuestring, "reduced") == 0)
-                        ptEx->eScheduleType = EXCEPTION_SCHEDULE_REDUCED;
-                }
+            cJSON* ptTplIdx = cJSON_GetObjectItem(ptItem, "templateIdx");
+            if (ptTplIdx && cJSON_IsNumber(ptTplIdx))
+                ptEx->ucTemplateIdx = (uint8_t)ptTplIdx->valueint;
 
-                /* Custom bells */
-                cJSON* ptCustom = cJSON_GetObjectItem(ptItem, "customBells");
-                if (ptCustom && cJSON_IsArray(ptCustom) && cJSON_GetArraySize(ptCustom) > 0)
-                {
-                    ptEx->bHasCustomBells = true;
-                    parseBellArray(ptCustom, ptEx->atCustomBells, &ptEx->ulCustomBellCount, SCHEDULE_MAX_BELLS);
-                }
-                else
-                {
-                    ptEx->bHasCustomBells = false;
-                    ptEx->ulCustomBellCount = 0;
-                }
+            cJSON* ptCustIdx = cJSON_GetObjectItem(ptItem, "customBellsIdx");
+            if (ptCustIdx && cJSON_IsNumber(ptCustIdx) && ptCustIdx->valueint >= 0)
+                ptEx->ucCustomBellsIdx = (uint8_t)ptCustIdx->valueint;
 
-                ptData->ulExceptionWorkingCount++;
+            ptData->ulExceptionCount++;
+        }
+
+        /* Custom bell sets */
+        cJSON* ptCustSets = cJSON_GetObjectItem(ptRoot, "customBellSets");
+        if (ptCustSets && cJSON_IsArray(ptCustSets))
+        {
+            int iSetSize = cJSON_GetArraySize(ptCustSets);
+            if ((uint32_t)iSetSize > SCHEDULE_MAX_CUSTOM_BELL_SETS) iSetSize = SCHEDULE_MAX_CUSTOM_BELL_SETS;
+
+            for (int i = 0; i < iSetSize; i++)
+            {
+                cJSON* ptSetItem = cJSON_GetArrayItem(ptCustSets, i);
+                cJSON* ptBells = cJSON_GetObjectItem(ptSetItem, "bells");
+                if (ptBells && cJSON_IsArray(ptBells))
+                {
+                    EXCEPTION_CUSTOM_BELLS_T* ptSet = &ptData->atCustomBellSets[ptData->ulCustomBellSetCount];
+                    uint32_t ulTmpCount = 0;
+                    parseBellArray(ptBells, ptSet->atBells, &ulTmpCount, SCHEDULE_MAX_CUSTOM_BELLS);
+                    ptSet->ucBellCount = (uint8_t)ulTmpCount;
+                    ptData->ulCustomBellSetCount++;
+                }
             }
         }
     }
-
-    /* Exception holidays */
-    cJSON* ptExHol = cJSON_GetObjectItem(ptRoot, "exceptionHoliday");
-    if (ptExHol && cJSON_IsArray(ptExHol))
+    else
     {
-        int iSize = cJSON_GetArraySize(ptExHol);
-        if ((uint32_t)iSize > SCHEDULE_MAX_EXCEPTION_HOLIDAY) iSize = SCHEDULE_MAX_EXCEPTION_HOLIDAY;
-
-        for (int i = 0; i < iSize; i++)
-        {
-            cJSON* ptItem = cJSON_GetArrayItem(ptExHol, i);
-            cJSON* ptDate = cJSON_GetObjectItem(ptItem, "date");
-            cJSON* ptLbl  = cJSON_GetObjectItem(ptItem, "label");
-
-            if (ptDate && cJSON_IsString(ptDate))
-            {
-                EXCEPTION_HOLIDAY_T* ptEx = &ptData->atExceptionHoliday[ptData->ulExceptionHolidayCount];
-                strncpy(ptEx->acDate, ptDate->valuestring, SCHEDULE_DATE_STR_LEN - 1);
-                memset(ptEx->acLabel, 0, SCHEDULE_LABEL_MAX_LEN);
-                if (ptLbl && cJSON_IsString(ptLbl))
-                {
-                    strncpy(ptEx->acLabel, ptLbl->valuestring, SCHEDULE_LABEL_MAX_LEN - 1);
-                }
-                ptData->ulExceptionHolidayCount++;
-            }
-        }
+        /* Old split format — migrate */
+        migrateOldExceptions(ptRoot, ptData);
     }
 
     cJSON_Delete(ptRoot);
@@ -392,36 +506,32 @@ Schedule_Data_SaveCalendar(const SCHEDULE_DATA_T* ptData)
         cJSON_AddItemToArray(ptHolArr, ptItem);
     }
 
-    /* Exception working */
-    cJSON* ptExWArr = cJSON_AddArrayToObject(ptRoot, "exceptionWorking");
-    for (uint32_t i = 0; i < ptData->ulExceptionWorkingCount; i++)
+    /* Unified exceptions */
+    cJSON* ptExArr = cJSON_AddArrayToObject(ptRoot, "exceptions");
+    for (uint32_t i = 0; i < ptData->ulExceptionCount; i++)
     {
-        const EXCEPTION_WORKING_T* ptEx = &ptData->atExceptionWorking[i];
+        const EXCEPTION_ENTRY_T* ptEx = &ptData->atExceptions[i];
         cJSON* ptItem = cJSON_CreateObject();
-        cJSON_AddStringToObject(ptItem, "date", ptEx->acDate);
+        cJSON_AddStringToObject(ptItem, "startDate", ptEx->acStartDate);
+        cJSON_AddStringToObject(ptItem, "endDate", ptEx->acEndDate);
         cJSON_AddStringToObject(ptItem, "label", ptEx->acLabel);
-
-        const char* pcScheduleType = "default";
-        if (ptEx->eScheduleType == EXCEPTION_SCHEDULE_CUSTOM) pcScheduleType = "custom";
-        else if (ptEx->eScheduleType == EXCEPTION_SCHEDULE_REDUCED) pcScheduleType = "reduced";
-        cJSON_AddStringToObject(ptItem, "scheduleType", pcScheduleType);
-
-        if (ptEx->bHasCustomBells && ptEx->ulCustomBellCount > 0)
-        {
-            cJSON* ptCustom = bellsToJsonArray(ptEx->atCustomBells, ptEx->ulCustomBellCount);
-            cJSON_AddItemToObject(ptItem, "customBells", ptCustom);
-        }
-        cJSON_AddItemToArray(ptExWArr, ptItem);
+        cJSON_AddStringToObject(ptItem, "action", actionToStr(ptEx->eAction));
+        cJSON_AddNumberToObject(ptItem, "timeOffsetMin", ptEx->iTimeOffsetMin);
+        cJSON_AddNumberToObject(ptItem, "templateIdx", ptEx->ucTemplateIdx);
+        cJSON_AddNumberToObject(ptItem, "customBellsIdx",
+                                ptEx->ucCustomBellsIdx == 0xFF ? -1 : ptEx->ucCustomBellsIdx);
+        cJSON_AddItemToArray(ptExArr, ptItem);
     }
 
-    /* Exception holidays */
-    cJSON* ptExHArr = cJSON_AddArrayToObject(ptRoot, "exceptionHoliday");
-    for (uint32_t i = 0; i < ptData->ulExceptionHolidayCount; i++)
+    /* Custom bell sets */
+    cJSON* ptCustArr = cJSON_AddArrayToObject(ptRoot, "customBellSets");
+    for (uint32_t i = 0; i < ptData->ulCustomBellSetCount; i++)
     {
-        cJSON* ptItem = cJSON_CreateObject();
-        cJSON_AddStringToObject(ptItem, "date", ptData->atExceptionHoliday[i].acDate);
-        cJSON_AddStringToObject(ptItem, "label", ptData->atExceptionHoliday[i].acLabel);
-        cJSON_AddItemToArray(ptExHArr, ptItem);
+        cJSON* ptSetItem = cJSON_CreateObject();
+        cJSON* ptBells = bellsToJsonArray(ptData->atCustomBellSets[i].atBells,
+                                          ptData->atCustomBellSets[i].ucBellCount);
+        cJSON_AddItemToObject(ptSetItem, "bells", ptBells);
+        cJSON_AddItemToArray(ptCustArr, ptSetItem);
     }
 
     esp_err_t err = writeJsonFile(SCHEDULE_FILE_CALENDAR, ptRoot);
@@ -477,38 +587,34 @@ Schedule_Data_HolidaysToJson(const HOLIDAY_T* ptHolidays, uint32_t ulCount)
 }
 
 cJSON*
-Schedule_Data_ExceptionsToJson(const EXCEPTION_WORKING_T* ptWork, uint32_t ulWorkCount,
-                                const EXCEPTION_HOLIDAY_T* ptHol, uint32_t ulHolCount)
+Schedule_Data_ExceptionsToJson(const EXCEPTION_ENTRY_T* ptExceptions, uint32_t ulCount,
+                                const EXCEPTION_CUSTOM_BELLS_T* ptCustomSets, uint32_t ulCustomCount)
 {
     cJSON* ptRoot = cJSON_CreateObject();
 
-    cJSON* ptWArr = cJSON_AddArrayToObject(ptRoot, "exceptionWorking");
-    for (uint32_t i = 0; i < ulWorkCount; i++)
+    cJSON* ptExArr = cJSON_AddArrayToObject(ptRoot, "exceptions");
+    for (uint32_t i = 0; i < ulCount; i++)
     {
+        const EXCEPTION_ENTRY_T* ptEx = &ptExceptions[i];
         cJSON* ptItem = cJSON_CreateObject();
-        cJSON_AddStringToObject(ptItem, "date", ptWork[i].acDate);
-        cJSON_AddStringToObject(ptItem, "label", ptWork[i].acLabel);
-
-        const char* pcScheduleType = "default";
-        if (ptWork[i].eScheduleType == EXCEPTION_SCHEDULE_CUSTOM) pcScheduleType = "custom";
-        else if (ptWork[i].eScheduleType == EXCEPTION_SCHEDULE_REDUCED) pcScheduleType = "reduced";
-        cJSON_AddStringToObject(ptItem, "scheduleType", pcScheduleType);
-
-        if (ptWork[i].bHasCustomBells && ptWork[i].ulCustomBellCount > 0)
-        {
-            cJSON* ptCustom = bellsToJsonArray(ptWork[i].atCustomBells, ptWork[i].ulCustomBellCount);
-            cJSON_AddItemToObject(ptItem, "customBells", ptCustom);
-        }
-        cJSON_AddItemToArray(ptWArr, ptItem);
+        cJSON_AddStringToObject(ptItem, "startDate", ptEx->acStartDate);
+        cJSON_AddStringToObject(ptItem, "endDate", ptEx->acEndDate);
+        cJSON_AddStringToObject(ptItem, "label", ptEx->acLabel);
+        cJSON_AddStringToObject(ptItem, "action", actionToStr(ptEx->eAction));
+        cJSON_AddNumberToObject(ptItem, "timeOffsetMin", ptEx->iTimeOffsetMin);
+        cJSON_AddNumberToObject(ptItem, "templateIdx", ptEx->ucTemplateIdx);
+        cJSON_AddNumberToObject(ptItem, "customBellsIdx",
+                                ptEx->ucCustomBellsIdx == 0xFF ? -1 : ptEx->ucCustomBellsIdx);
+        cJSON_AddItemToArray(ptExArr, ptItem);
     }
 
-    cJSON* ptHArr = cJSON_AddArrayToObject(ptRoot, "exceptionHoliday");
-    for (uint32_t i = 0; i < ulHolCount; i++)
+    cJSON* ptCustArr = cJSON_AddArrayToObject(ptRoot, "customBellSets");
+    for (uint32_t i = 0; i < ulCustomCount; i++)
     {
-        cJSON* ptItem = cJSON_CreateObject();
-        cJSON_AddStringToObject(ptItem, "date", ptHol[i].acDate);
-        cJSON_AddStringToObject(ptItem, "label", ptHol[i].acLabel);
-        cJSON_AddItemToArray(ptHArr, ptItem);
+        cJSON* ptSetItem = cJSON_CreateObject();
+        cJSON* ptBells = bellsToJsonArray(ptCustomSets[i].atBells, ptCustomSets[i].ucBellCount);
+        cJSON_AddItemToObject(ptSetItem, "bells", ptBells);
+        cJSON_AddItemToArray(ptCustArr, ptSetItem);
     }
 
     return ptRoot;
@@ -645,7 +751,7 @@ Schedule_Data_CreateDefaults(void)
     {
         cJSON* ptRoot = cJSON_CreateObject();
 
-        /* Copy holidays/exceptions from flashed defaults if present */
+        /* Copy holidays from flashed defaults if present */
         if (ptDefaults)
         {
             cJSON* ptDefHol = cJSON_GetObjectItem(ptDefaults, "holidays");
@@ -657,37 +763,29 @@ Schedule_Data_CreateDefaults(void)
             {
                 cJSON_AddItemToObject(ptRoot, "holidays", cJSON_CreateArray());
             }
-
-            cJSON* ptDefExW = cJSON_GetObjectItem(ptDefaults, "exceptionWorking");
-            if (ptDefExW && cJSON_IsArray(ptDefExW))
-            {
-                cJSON_AddItemToObject(ptRoot, "exceptionWorking", cJSON_Duplicate(ptDefExW, true));
-            }
-            else
-            {
-                cJSON_AddItemToObject(ptRoot, "exceptionWorking", cJSON_CreateArray());
-            }
-
-            cJSON* ptDefExH = cJSON_GetObjectItem(ptDefaults, "exceptionHoliday");
-            if (ptDefExH && cJSON_IsArray(ptDefExH))
-            {
-                cJSON_AddItemToObject(ptRoot, "exceptionHoliday", cJSON_Duplicate(ptDefExH, true));
-            }
-            else
-            {
-                cJSON_AddItemToObject(ptRoot, "exceptionHoliday", cJSON_CreateArray());
-            }
         }
         else
         {
             cJSON_AddItemToObject(ptRoot, "holidays", cJSON_CreateArray());
-            cJSON_AddItemToObject(ptRoot, "exceptionWorking", cJSON_CreateArray());
-            cJSON_AddItemToObject(ptRoot, "exceptionHoliday", cJSON_CreateArray());
         }
+
+        /* Empty unified exceptions */
+        cJSON_AddItemToObject(ptRoot, "exceptions", cJSON_CreateArray());
+        cJSON_AddItemToObject(ptRoot, "customBellSets", cJSON_CreateArray());
 
         writeJsonFile(SCHEDULE_FILE_CALENDAR, ptRoot);
         cJSON_Delete(ptRoot);
         ESP_LOGI(TAG, "Created default calendar.json");
+    }
+
+    /* Templates */
+    if (!SPIFFS_FileExists(SCHEDULE_FILE_TEMPLATES))
+    {
+        cJSON* ptRoot = cJSON_CreateObject();
+        cJSON_AddItemToObject(ptRoot, "templates", cJSON_CreateArray());
+        writeJsonFile(SCHEDULE_FILE_TEMPLATES, ptRoot);
+        cJSON_Delete(ptRoot);
+        ESP_LOGI(TAG, "Created default templates.json");
     }
 
     if (ptDefaults)
@@ -726,47 +824,73 @@ Schedule_Data_CleanupExpiredExceptions(void)
 
     bool bChanged = false;
 
-    /* Remove expired exception working days */
-    uint32_t ulNewWorkCount = 0;
-    for (uint32_t i = 0; i < ptData->ulExceptionWorkingCount; i++)
+    /* Remove expired unified exceptions */
+    uint32_t ulNewCount = 0;
+    for (uint32_t i = 0; i < ptData->ulExceptionCount; i++)
     {
-        int iExOrd = dateStrToOrdinal(ptData->atExceptionWorking[i].acDate);
+        /* For date-range exceptions, use endDate; for single-day, use startDate */
+        const char* pcExpDate = ptData->atExceptions[i].acEndDate[0]
+                                ? ptData->atExceptions[i].acEndDate
+                                : ptData->atExceptions[i].acStartDate;
+        int iExOrd = dateStrToOrdinal(pcExpDate);
         if (iExOrd >= 0 && iExOrd < iTodayOrd)
         {
-            ESP_LOGI(TAG, "Cleaning up expired exception working: %s (%s)",
-                     ptData->atExceptionWorking[i].acDate,
-                     ptData->atExceptionWorking[i].acLabel);
+            ESP_LOGI(TAG, "Cleaning up expired exception: %s (%s)",
+                     ptData->atExceptions[i].acStartDate,
+                     ptData->atExceptions[i].acLabel);
             bChanged = true;
             continue;
         }
-        if (ulNewWorkCount != i)
+        if (ulNewCount != i)
         {
-            ptData->atExceptionWorking[ulNewWorkCount] = ptData->atExceptionWorking[i];
+            ptData->atExceptions[ulNewCount] = ptData->atExceptions[i];
         }
-        ulNewWorkCount++;
+        ulNewCount++;
     }
-    ptData->ulExceptionWorkingCount = ulNewWorkCount;
+    ptData->ulExceptionCount = ulNewCount;
 
-    /* Remove expired exception holidays */
-    uint32_t ulNewHolCount = 0;
-    for (uint32_t i = 0; i < ptData->ulExceptionHolidayCount; i++)
+    /* Garbage-collect unreferenced custom bell sets */
+    if (bChanged && ptData->ulCustomBellSetCount > 0)
     {
-        int iExOrd = dateStrToOrdinal(ptData->atExceptionHoliday[i].acDate);
-        if (iExOrd >= 0 && iExOrd < iTodayOrd)
+        bool abUsed[SCHEDULE_MAX_CUSTOM_BELL_SETS] = { false };
+        for (uint32_t i = 0; i < ptData->ulExceptionCount; i++)
         {
-            ESP_LOGI(TAG, "Cleaning up expired exception holiday: %s (%s)",
-                     ptData->atExceptionHoliday[i].acDate,
-                     ptData->atExceptionHoliday[i].acLabel);
-            bChanged = true;
-            continue;
+            if (ptData->atExceptions[i].eAction == EXCEPTION_ACTION_CUSTOM &&
+                ptData->atExceptions[i].ucCustomBellsIdx < ptData->ulCustomBellSetCount)
+            {
+                abUsed[ptData->atExceptions[i].ucCustomBellsIdx] = true;
+            }
         }
-        if (ulNewHolCount != i)
+
+        /* Compact: remove unused and remap indices */
+        uint8_t aucRemap[SCHEDULE_MAX_CUSTOM_BELL_SETS];
+        uint32_t ulNewSetCount = 0;
+        for (uint32_t i = 0; i < ptData->ulCustomBellSetCount; i++)
         {
-            ptData->atExceptionHoliday[ulNewHolCount] = ptData->atExceptionHoliday[i];
+            if (abUsed[i])
+            {
+                aucRemap[i] = (uint8_t)ulNewSetCount;
+                if (ulNewSetCount != i)
+                    ptData->atCustomBellSets[ulNewSetCount] = ptData->atCustomBellSets[i];
+                ulNewSetCount++;
+            }
+            else
+            {
+                aucRemap[i] = 0xFF;
+            }
         }
-        ulNewHolCount++;
+        ptData->ulCustomBellSetCount = ulNewSetCount;
+
+        /* Update exception references */
+        for (uint32_t i = 0; i < ptData->ulExceptionCount; i++)
+        {
+            if (ptData->atExceptions[i].ucCustomBellsIdx != 0xFF &&
+                ptData->atExceptions[i].ucCustomBellsIdx < SCHEDULE_MAX_CUSTOM_BELL_SETS)
+            {
+                ptData->atExceptions[i].ucCustomBellsIdx = aucRemap[ptData->atExceptions[i].ucCustomBellsIdx];
+            }
+        }
     }
-    ptData->ulExceptionHolidayCount = ulNewHolCount;
 
     /* Also remove expired holiday ranges */
     uint32_t ulNewRangeCount = 0;
@@ -793,10 +917,97 @@ Schedule_Data_CleanupExpiredExceptions(void)
     if (bChanged)
     {
         err = Schedule_Data_SaveCalendar(ptData);
-        ESP_LOGI(TAG, "Calendar cleaned: %"PRIu32" holidays, %"PRIu32" exc-work, %"PRIu32" exc-hol remaining",
-                 ptData->ulHolidayCount, ptData->ulExceptionWorkingCount, ptData->ulExceptionHolidayCount);
+        ESP_LOGI(TAG, "Calendar cleaned: %"PRIu32" holidays, %"PRIu32" exceptions remaining",
+                 ptData->ulHolidayCount, ptData->ulExceptionCount);
     }
 
     free(ptData);
     return err;
+}
+
+/* ================================================================== */
+/* Bell templates                                                      */
+/* ================================================================== */
+
+esp_err_t
+Schedule_Data_LoadTemplates(SCHEDULE_DATA_T* ptData)
+{
+    if (NULL == ptData) return ESP_ERR_INVALID_ARG;
+
+    ptData->ulTemplateCount = 0;
+
+    cJSON* ptRoot = readJsonFile(SCHEDULE_FILE_TEMPLATES);
+    if (NULL == ptRoot) return ESP_ERR_NOT_FOUND;
+
+    cJSON* ptArr = cJSON_GetObjectItem(ptRoot, "templates");
+    if (ptArr && cJSON_IsArray(ptArr))
+    {
+        int iSize = cJSON_GetArraySize(ptArr);
+        if ((uint32_t)iSize > SCHEDULE_MAX_TEMPLATES) iSize = SCHEDULE_MAX_TEMPLATES;
+
+        for (int i = 0; i < iSize; i++)
+        {
+            cJSON* ptItem = cJSON_GetArrayItem(ptArr, i);
+            BELL_TEMPLATE_T* ptTpl = &ptData->atTemplates[ptData->ulTemplateCount];
+            memset(ptTpl, 0, sizeof(BELL_TEMPLATE_T));
+
+            cJSON* ptName = cJSON_GetObjectItem(ptItem, "name");
+            if (ptName && cJSON_IsString(ptName))
+                strncpy(ptTpl->acName, ptName->valuestring, SCHEDULE_TEMPLATE_NAME_LEN - 1);
+
+            cJSON* ptBells = cJSON_GetObjectItem(ptItem, "bells");
+            if (ptBells && cJSON_IsArray(ptBells))
+            {
+                uint32_t ulTmpCount = 0;
+                parseBellArray(ptBells, ptTpl->atBells, &ulTmpCount, SCHEDULE_MAX_CUSTOM_BELLS);
+                ptTpl->ucBellCount = (uint8_t)ulTmpCount;
+            }
+
+            ptData->ulTemplateCount++;
+        }
+    }
+
+    cJSON_Delete(ptRoot);
+    return ESP_OK;
+}
+
+esp_err_t
+Schedule_Data_SaveTemplates(const SCHEDULE_DATA_T* ptData)
+{
+    if (NULL == ptData) return ESP_ERR_INVALID_ARG;
+
+    cJSON* ptRoot = cJSON_CreateObject();
+    cJSON* ptArr = cJSON_AddArrayToObject(ptRoot, "templates");
+
+    for (uint32_t i = 0; i < ptData->ulTemplateCount; i++)
+    {
+        cJSON* ptItem = cJSON_CreateObject();
+        cJSON_AddStringToObject(ptItem, "name", ptData->atTemplates[i].acName);
+        cJSON* ptBells = bellsToJsonArray(ptData->atTemplates[i].atBells,
+                                          ptData->atTemplates[i].ucBellCount);
+        cJSON_AddItemToObject(ptItem, "bells", ptBells);
+        cJSON_AddItemToArray(ptArr, ptItem);
+    }
+
+    esp_err_t err = writeJsonFile(SCHEDULE_FILE_TEMPLATES, ptRoot);
+    cJSON_Delete(ptRoot);
+    return err;
+}
+
+cJSON*
+Schedule_Data_TemplatesToJson(const BELL_TEMPLATE_T* ptTemplates, uint32_t ulCount)
+{
+    cJSON* ptRoot = cJSON_CreateObject();
+    cJSON* ptArr = cJSON_AddArrayToObject(ptRoot, "templates");
+
+    for (uint32_t i = 0; i < ulCount; i++)
+    {
+        cJSON* ptItem = cJSON_CreateObject();
+        cJSON_AddStringToObject(ptItem, "name", ptTemplates[i].acName);
+        cJSON* ptBells = bellsToJsonArray(ptTemplates[i].atBells, ptTemplates[i].ucBellCount);
+        cJSON_AddItemToObject(ptItem, "bells", ptBells);
+        cJSON_AddItemToArray(ptArr, ptItem);
+    }
+
+    return ptRoot;
 }

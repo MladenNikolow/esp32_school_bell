@@ -69,6 +69,21 @@ tmToDateStr(const struct tm* ptTm, char* pcOut, size_t ulLen)
 /* Day type determination                                              */
 /* ------------------------------------------------------------------ */
 
+/** Check if today falls within an exception's date range (or exact date) */
+static bool
+exceptionMatchesDate(const EXCEPTION_ENTRY_T* ptEx, const char* pcToday, int iTodayOrd)
+{
+    if (ptEx->acEndDate[0] != '\0')
+    {
+        /* Date range: startDate <= today <= endDate */
+        int iStart = dateStrToOrdinal(ptEx->acStartDate);
+        int iEnd   = dateStrToOrdinal(ptEx->acEndDate);
+        return (iStart >= 0 && iEnd >= 0 && iTodayOrd >= iStart && iTodayOrd <= iEnd);
+    }
+    /* Single day: exact match */
+    return strcmp(pcToday, ptEx->acStartDate) == 0;
+}
+
 static DAY_TYPE_E
 scheduler_DetermineDayType(const SCHEDULER_RSC_T* ptRsc, const struct tm* ptNow)
 {
@@ -78,23 +93,22 @@ scheduler_DetermineDayType(const SCHEDULER_RSC_T* ptRsc, const struct tm* ptNow)
 
     const SCHEDULE_DATA_T* ptData = ptRsc->ptData;
 
-    /* Priority 1: Exception holiday → OFF */
-    for (uint32_t i = 0; i < ptData->ulExceptionHolidayCount; i++)
+    /* Priority 1 & 2: Unified exceptions — first match wins.
+     * DAY_OFF action → EXCEPTION_HOLIDAY, all others → EXCEPTION_WORKING */
+    for (uint32_t i = 0; i < ptData->ulExceptionCount; i++)
     {
-        if (strcmp(acToday, ptData->atExceptionHoliday[i].acDate) == 0)
+        if (exceptionMatchesDate(&ptData->atExceptions[i], acToday, iTodayOrd))
         {
-            ESP_LOGI(TAG, "Today is exception holiday: %s", ptData->atExceptionHoliday[i].acLabel);
-            return DAY_TYPE_EXCEPTION_HOLIDAY;
-        }
-    }
-
-    /* Priority 2: Exception working → ON */
-    for (uint32_t i = 0; i < ptData->ulExceptionWorkingCount; i++)
-    {
-        if (strcmp(acToday, ptData->atExceptionWorking[i].acDate) == 0)
-        {
-            ESP_LOGI(TAG, "Today is exception working: %s", ptData->atExceptionWorking[i].acLabel);
-            return DAY_TYPE_EXCEPTION_WORKING;
+            if (ptData->atExceptions[i].eAction == EXCEPTION_ACTION_DAY_OFF)
+            {
+                ESP_LOGI(TAG, "Today is exception day-off: %s", ptData->atExceptions[i].acLabel);
+                return DAY_TYPE_EXCEPTION_HOLIDAY;
+            }
+            else
+            {
+                ESP_LOGI(TAG, "Today is exception working: %s", ptData->atExceptions[i].acLabel);
+                return DAY_TYPE_EXCEPTION_WORKING;
+            }
         }
     }
 
@@ -127,7 +141,6 @@ scheduler_DetermineDayType(const SCHEDULER_RSC_T* ptRsc, const struct tm* ptNow)
 /**
  * Build a merged flat array of enabled bells from both shifts.
  * Returns the count written to ptOut (up to ulMaxOut).
- * Used for normal working days.
  */
 static uint32_t
 scheduler_MergeBells(const SCHEDULE_DATA_T* ptData, BELL_ENTRY_T* ptOut, uint32_t ulMaxOut)
@@ -151,6 +164,109 @@ scheduler_MergeBells(const SCHEDULE_DATA_T* ptData, BELL_ENTRY_T* ptOut, uint32_
     }
 
     return ulTotal;
+}
+
+/** Build bells for first shift only */
+static uint32_t
+scheduler_FirstShiftBells(const SCHEDULE_DATA_T* ptData, BELL_ENTRY_T* ptOut, uint32_t ulMaxOut)
+{
+    uint32_t ulTotal = 0;
+    for (uint32_t i = 0; i < ptData->tFirstShift.ulBellCount && ulTotal < ulMaxOut; i++)
+    {
+        ptOut[ulTotal++] = ptData->tFirstShift.atBells[i];
+    }
+    return ulTotal;
+}
+
+/** Build bells for second shift only */
+static uint32_t
+scheduler_SecondShiftBells(const SCHEDULE_DATA_T* ptData, BELL_ENTRY_T* ptOut, uint32_t ulMaxOut)
+{
+    uint32_t ulTotal = 0;
+    for (uint32_t i = 0; i < ptData->tSecondShift.ulBellCount && ulTotal < ulMaxOut; i++)
+    {
+        ptOut[ulTotal++] = ptData->tSecondShift.atBells[i];
+    }
+    return ulTotal;
+}
+
+/** Apply time offset (minutes) to all bells in array */
+static void
+scheduler_ApplyTimeOffset(BELL_ENTRY_T* ptBells, uint32_t ulCount, int8_t iOffsetMin)
+{
+    if (iOffsetMin == 0) return;
+
+    for (uint32_t i = 0; i < ulCount; i++)
+    {
+        int iMinutes = ptBells[i].ucHour * 60 + ptBells[i].ucMinute + iOffsetMin;
+
+        /* Clamp to 00:00 – 23:59 */
+        if (iMinutes < 0) iMinutes = 0;
+        if (iMinutes >= 24 * 60) iMinutes = 24 * 60 - 1;
+
+        ptBells[i].ucHour   = (uint8_t)(iMinutes / 60);
+        ptBells[i].ucMinute = (uint8_t)(iMinutes % 60);
+    }
+}
+
+/**
+ * Resolve bells for an exception working day.
+ * Returns the bell count written to ptOut.
+ */
+static uint32_t
+scheduler_ResolveExceptionBells(const SCHEDULE_DATA_T* ptData,
+                                 const EXCEPTION_ENTRY_T* ptEx,
+                                 BELL_ENTRY_T* ptOut, uint32_t ulMaxOut)
+{
+    uint32_t ulCount = 0;
+
+    switch (ptEx->eAction)
+    {
+        case EXCEPTION_ACTION_NORMAL:
+            ulCount = scheduler_MergeBells(ptData, ptOut, ulMaxOut);
+            break;
+
+        case EXCEPTION_ACTION_FIRST_SHIFT:
+            ulCount = scheduler_FirstShiftBells(ptData, ptOut, ulMaxOut);
+            break;
+
+        case EXCEPTION_ACTION_SECOND_SHIFT:
+            ulCount = scheduler_SecondShiftBells(ptData, ptOut, ulMaxOut);
+            break;
+
+        case EXCEPTION_ACTION_TEMPLATE:
+            if (ptEx->ucTemplateIdx < ptData->ulTemplateCount)
+            {
+                const BELL_TEMPLATE_T* ptTpl = &ptData->atTemplates[ptEx->ucTemplateIdx];
+                ulCount = ptTpl->ucBellCount;
+                if (ulCount > ulMaxOut) ulCount = ulMaxOut;
+                memcpy(ptOut, ptTpl->atBells, ulCount * sizeof(BELL_ENTRY_T));
+            }
+            else
+            {
+                /* Fallback: use normal bells if template index invalid */
+                ulCount = scheduler_MergeBells(ptData, ptOut, ulMaxOut);
+            }
+            break;
+
+        case EXCEPTION_ACTION_CUSTOM:
+            if (ptEx->ucCustomBellsIdx < ptData->ulCustomBellSetCount)
+            {
+                const EXCEPTION_CUSTOM_BELLS_T* ptSet = &ptData->atCustomBellSets[ptEx->ucCustomBellsIdx];
+                ulCount = ptSet->ucBellCount;
+                if (ulCount > ulMaxOut) ulCount = ulMaxOut;
+                memcpy(ptOut, ptSet->atBells, ulCount * sizeof(BELL_ENTRY_T));
+            }
+            break;
+
+        default: /* DAY_OFF — should not reach here */
+            break;
+    }
+
+    /* Apply time offset */
+    scheduler_ApplyTimeOffset(ptOut, ulCount, ptEx->iTimeOffsetMin);
+
+    return ulCount;
 }
 
 /* ------------------------------------------------------------------ */
@@ -178,15 +294,15 @@ scheduler_FindNextBell(const SCHEDULER_RSC_T* ptRsc, const struct tm* ptNow,
     {
         char acToday[SCHEDULE_DATE_STR_LEN];
         tmToDateStr(ptNow, acToday, sizeof(acToday));
-        for (uint32_t i = 0; i < ptData->ulExceptionWorkingCount; i++)
+        int iTodayOrd = dateStrToOrdinal(acToday);
+
+        for (uint32_t i = 0; i < ptData->ulExceptionCount; i++)
         {
-            if (strcmp(acToday, ptData->atExceptionWorking[i].acDate) == 0 &&
-                ptData->atExceptionWorking[i].bHasCustomBells)
+            if (exceptionMatchesDate(&ptData->atExceptions[i], acToday, iTodayOrd) &&
+                ptData->atExceptions[i].eAction != EXCEPTION_ACTION_DAY_OFF)
             {
-                ulCount = ptData->atExceptionWorking[i].ulCustomBellCount;
-                if (ulCount > SCHEDULE_MAX_BELLS) ulCount = SCHEDULE_MAX_BELLS;
-                memcpy(atMerged, ptData->atExceptionWorking[i].atCustomBells,
-                       ulCount * sizeof(BELL_ENTRY_T));
+                ulCount = scheduler_ResolveExceptionBells(ptData, &ptData->atExceptions[i],
+                                                           atMerged, SCHEDULE_MAX_BELLS);
                 goto search;
             }
         }
@@ -287,28 +403,28 @@ scheduler_Task(void* pvArg)
             BELL_ENTRY_T atMerged[SCHEDULE_MAX_BELLS];
             uint32_t ulCount = 0;
 
-            /* Exception working with custom bells overrides shifts */
-            bool bCustom = false;
+            /* Exception working: resolve bells based on action */
+            bool bResolved = false;
             if (ptRsc->eCachedDayType == DAY_TYPE_EXCEPTION_WORKING)
             {
                 char acToday[SCHEDULE_DATE_STR_LEN];
                 tmToDateStr(&tNow, acToday, sizeof(acToday));
-                for (uint32_t i = 0; i < ptRsc->ptData->ulExceptionWorkingCount; i++)
+                int iTodayOrd = dateStrToOrdinal(acToday);
+
+                for (uint32_t i = 0; i < ptRsc->ptData->ulExceptionCount; i++)
                 {
-                    if (strcmp(acToday, ptRsc->ptData->atExceptionWorking[i].acDate) == 0 &&
-                        ptRsc->ptData->atExceptionWorking[i].bHasCustomBells)
+                    if (exceptionMatchesDate(&ptRsc->ptData->atExceptions[i], acToday, iTodayOrd) &&
+                        ptRsc->ptData->atExceptions[i].eAction != EXCEPTION_ACTION_DAY_OFF)
                     {
-                        ulCount = ptRsc->ptData->atExceptionWorking[i].ulCustomBellCount;
-                        if (ulCount > SCHEDULE_MAX_BELLS) ulCount = SCHEDULE_MAX_BELLS;
-                        memcpy(atMerged, ptRsc->ptData->atExceptionWorking[i].atCustomBells,
-                               ulCount * sizeof(BELL_ENTRY_T));
-                        bCustom = true;
+                        ulCount = scheduler_ResolveExceptionBells(ptRsc->ptData,
+                                    &ptRsc->ptData->atExceptions[i], atMerged, SCHEDULE_MAX_BELLS);
+                        bResolved = true;
                         break;
                     }
                 }
             }
 
-            if (!bCustom)
+            if (!bResolved)
             {
                 ulCount = scheduler_MergeBells(ptRsc->ptData, atMerged, SCHEDULE_MAX_BELLS);
             }
@@ -370,15 +486,16 @@ Scheduler_Init(SCHEDULER_H* phScheduler)
     Schedule_Data_LoadSettings(&ptRsc->ptData->tSettings);
     Schedule_Data_LoadBells(&ptRsc->ptData->tFirstShift, &ptRsc->ptData->tSecondShift);
     Schedule_Data_LoadCalendar(ptRsc->ptData);
+    Schedule_Data_LoadTemplates(ptRsc->ptData);
 
-    ESP_LOGI(TAG, "Loaded schedule: 1st(%s,%"PRIu32") 2nd(%s,%"PRIu32") %"PRIu32" holidays, %"PRIu32" exc-work, %"PRIu32" exc-hol",
+    ESP_LOGI(TAG, "Loaded schedule: 1st(%s,%"PRIu32") 2nd(%s,%"PRIu32") %"PRIu32" holidays, %"PRIu32" exceptions, %"PRIu32" templates",
              ptRsc->ptData->tFirstShift.bEnabled ? "on" : "off",
              ptRsc->ptData->tFirstShift.ulBellCount,
              ptRsc->ptData->tSecondShift.bEnabled ? "on" : "off",
              ptRsc->ptData->tSecondShift.ulBellCount,
              ptRsc->ptData->ulHolidayCount,
-             ptRsc->ptData->ulExceptionWorkingCount,
-             ptRsc->ptData->ulExceptionHolidayCount);
+             ptRsc->ptData->ulExceptionCount,
+             ptRsc->ptData->ulTemplateCount);
 
     /* Create background task */
     BaseType_t xResult = xTaskCreate(scheduler_Task, "SCHEDULER",
@@ -411,6 +528,7 @@ Scheduler_ReloadSchedule(SCHEDULER_H hScheduler)
     Schedule_Data_LoadSettings(&ptRsc->ptData->tSettings);
     Schedule_Data_LoadBells(&ptRsc->ptData->tFirstShift, &ptRsc->ptData->tSecondShift);
     Schedule_Data_LoadCalendar(ptRsc->ptData);
+    Schedule_Data_LoadTemplates(ptRsc->ptData);
 
     /* Reset cached day type so it recalculates */
     ptRsc->iCachedDayYday = -1;

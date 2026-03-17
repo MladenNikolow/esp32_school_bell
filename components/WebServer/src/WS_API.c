@@ -82,7 +82,15 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
 
                     if(ESP_OK == espErr)
                     {
-                        espErr = WS_Station_Start(ptRsc->tParams.hScheduler);
+                        espErr = WS_Station_Start(ptRsc->tParams.hScheduler,
+                                               ptRsc->tParams.hWiFiManager);
+                    }
+
+                    if(ESP_OK == espErr)
+                    {
+                        ESP_LOGI(TAG, "STA+AP fallback mode active — "
+                                 "connect to AP \"ESP32_Setup\" (pass: 12345678) "
+                                 "at 192.168.4.1 to reconfigure WiFi");
                     }
                     
                     break;
@@ -230,6 +238,12 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
         }
         else
         {
+            /* Create AP netif so a fallback soft-AP is available while
+               the STA interface retries connecting (APSTA mode below).
+               Users can connect to the AP and reconfigure credentials
+               without waiting for all retries to exhaust.               */
+            (void)esp_netif_create_default_wifi_ap();
+
             wifi_init_config_t tWifiInitCfg = WIFI_INIT_CONFIG_DEFAULT();
             espErr = esp_wifi_init(&tWifiInitCfg);
 
@@ -259,6 +273,26 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
         espErr = esp_event_handler_instance_register(WIFI_EVENT, 
                                             WIFI_EVENT_STA_DISCONNECTED,
                                             &Ws_EventHandler_StaWiFi,
+                                            ptRsc->hNetif, 
+                                            NULL);
+    }
+
+    /* Register AP client connect/disconnect events so the reconnect
+       timer can be paused while a user is on the setup soft-AP.     */
+    if(ESP_OK == espErr) 
+    {
+        espErr = esp_event_handler_instance_register(WIFI_EVENT, 
+                                            WIFI_EVENT_AP_STACONNECTED,
+                                            &Ws_EventHandler_ApWiFi,
+                                            ptRsc->hNetif, 
+                                            NULL);
+    }
+
+    if(ESP_OK == espErr) 
+    {
+        espErr = esp_event_handler_instance_register(WIFI_EVENT, 
+                                            WIFI_EVENT_AP_STADISCONNECTED,
+                                            &Ws_EventHandler_ApWiFi,
                                             ptRsc->hNetif, 
                                             NULL);
     }
@@ -293,11 +327,29 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
             tWifiCfg.sta.threshold.authmode = WIFI_AUTH_OPEN;
         }
 
-        espErr = esp_wifi_set_mode(WIFI_MODE_STA);
+        /* APSTA mode: keep the soft-AP visible with default credentials
+           so the user can reconfigure WiFi during STA connection retries. */
+        espErr = esp_wifi_set_mode(WIFI_MODE_APSTA);
     }
 
-    /* Start WiFi BEFORE setting config so the WPA supplicant
-       (including its PMKSA cache) is fully initialised.       */
+    /* Configure fallback soft-AP with fixed credentials
+       (mirrors WiFi_Manager defaults: "ESP32_Setup" / "12345678"). */
+    if (ESP_OK == espErr)
+    {
+        wifi_config_t tConfigAp = {
+            .ap = {
+                .ssid           = "ESP32_Setup",
+                .ssid_len       = sizeof("ESP32_Setup") - 1,
+                .password       = "12345678",
+                .max_connection = 4,
+                .authmode       = WIFI_AUTH_WPA_WPA2_PSK,
+            }
+        };
+        espErr = esp_wifi_set_config(WIFI_IF_AP, &tConfigAp);
+    }
+
+    /* Start WiFi BEFORE setting STA config so the WPA supplicant
+       (including its PMKSA cache) is fully initialised.           */
     if(ESP_OK == espErr) 
     {
         espErr = esp_wifi_start();
