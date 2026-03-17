@@ -95,8 +95,8 @@ static esp_err_t read_body(httpd_req_t* req, char* out, size_t outlen)
 static esp_err_t get_bearer_token(httpd_req_t* req, char* out, size_t outlen)
 {
     char auth[256];
-    int len = httpd_req_get_hdr_value_str(req, "Authorization", auth, sizeof(auth));
-    if (len <= 0) {
+    esp_err_t err = httpd_req_get_hdr_value_str(req, "Authorization", auth, sizeof(auth));
+    if (ESP_OK != err) {
         return ESP_ERR_NOT_FOUND;
     }
 
@@ -180,16 +180,19 @@ static esp_err_t api_login(httpd_req_t* req)
     const char* password = p->valuestring;
 
     esp_err_t credsOk = ((0 == strcmp(username, AUTH_USERNAME)) && (0 == strcmp(password, AUTH_PASSWORD))) ? ESP_OK : ESP_FAIL;
-    cJSON_Delete(root);
 
     if (ESP_OK != credsOk) {
+        cJSON_Delete(root);
         return send_json(req, "401 Unauthorized", "{\"error\":\"invalid credentials\"}");
     }
 
-    // Issue new token (single active session)
-    make_token(g_token);
+    // Copy username before freeing the cJSON tree
     snprintf(g_user, sizeof(g_user), "%s", username);
     snprintf(g_role, sizeof(g_role), "%s", DEMO_ROLE);
+    cJSON_Delete(root);
+
+    // Issue new token (single active session)
+    make_token(g_token);
 
     char resp[512];
     snprintf(resp, sizeof(resp),

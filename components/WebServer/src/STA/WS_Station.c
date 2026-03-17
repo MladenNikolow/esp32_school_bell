@@ -1,24 +1,27 @@
 #include "WS_Station.h"
 #include "esp_http_server.h"
 #include "React/Ws_React.h"
+#include "React/WS_React_Routes.h"
+#include "React/RestAPI/Example/ExampleAPI.h"
+#include "React/RestAPI/Schedule/ScheduleAPI.h"
 
-#include "esp_log.h"
+static EXAMPLE_API_H s_hExampleApi = NULL;
+static SCHEDULE_API_H s_hScheduleApi = NULL;
 
-static const char* TAG = "WS_STATION";
-
-static httpd_handle_t s_hHttpServer = NULL;
+/* Minimal /api/wifi/status for STA mode so the React frontend can
+   distinguish AP from STA without hitting the catch-all file server. */
+static esp_err_t
+ws_Station_WifiStatusHandler(httpd_req_t* ptReq)
+{
+    httpd_resp_set_type(ptReq, "application/json");
+    httpd_resp_sendstr(ptReq, "{\"mode\":\"STA\"}");
+    return ESP_OK;
+}
 
 esp_err_t
-WS_Station_Start(void)
+WS_Station_Start(SCHEDULER_H hScheduler)
 {
     esp_err_t espRslt = ESP_OK;
-
-    /* Already running — nothing to do */
-    if (NULL != s_hHttpServer)
-    {
-        return ESP_OK;
-    }
-
     httpd_config_t tHttpServerConfig = HTTPD_DEFAULT_CONFIG();
     tHttpServerConfig.max_uri_handlers = 64;
     tHttpServerConfig.stack_size = 16384;
@@ -27,51 +30,59 @@ WS_Station_Start(void)
     // raise both directions to prevent EAGAIN drops mid-transfer.
     tHttpServerConfig.send_wait_timeout = 30;
     tHttpServerConfig.recv_wait_timeout = 30;
+    httpd_handle_t hHttpServer = NULL;
 
-    espRslt = httpd_start(&s_hHttpServer, &tHttpServerConfig);
+    espRslt = httpd_start(&hHttpServer, &tHttpServerConfig);
 
     if (ESP_OK == espRslt)
     {
-        espRslt = Ws_React_RegisterStaticFiles(s_hHttpServer);
+        espRslt = Ws_React_RegisterStaticFiles(hHttpServer);
     }
 
     if (ESP_OK == espRslt)
     {
-        espRslt = Ws_React_RegisterApiHandlers(s_hHttpServer);
+        espRslt = Ws_React_RegisterApiHandlers(hHttpServer);
     }
 
-    // if (ESP_OK == espErr)
-    // {
-    //     espErr = httpd_register_uri_handler(server, &schedule_config_get);
-    // }
-
-    // if(ESP_OK == espErr)
-    // {
-    //     espErr =  httpd_register_uri_handler(server, &schedule_config_post);
-    //}
-
-    if (ESP_OK != espRslt)
+    if (ESP_OK == espRslt)
     {
-        /* Clean up on failure */
-        if (NULL != s_hHttpServer)
-        {
-            httpd_stop(s_hHttpServer);
-            s_hHttpServer = NULL;
-        }
+        EXAMPLE_API_PARAMS_T tExampleParams = {0};
+        espRslt = ExampleAPI_Init(&tExampleParams, &s_hExampleApi);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        espRslt = ExampleAPI_Register(s_hExampleApi, hHttpServer);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        SCHEDULE_API_PARAMS_T tScheduleParams = { .hScheduler = hScheduler };
+        espRslt = ScheduleAPI_Init(&tScheduleParams, &s_hScheduleApi);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        espRslt = ScheduleAPI_Register(s_hScheduleApi, hHttpServer);
+    }
+
+    /* WiFi status endpoint — lets the frontend detect STA mode */
+    if (ESP_OK == espRslt)
+    {
+        httpd_uri_t tWifiStatus = {
+            .uri      = "/api/wifi/status",
+            .method   = HTTP_GET,
+            .handler  = ws_Station_WifiStatusHandler,
+            .user_ctx = NULL,
+        };
+        espRslt = httpd_register_uri_handler(hHttpServer, &tWifiStatus);
+    }
+
+    /* Register the catch-all wildcard LAST so it does not shadow API routes */
+    if (ESP_OK == espRslt)
+    {
+        espRslt = Ws_React_RegisterCatchAll(hHttpServer);
     }
 
     return espRslt;
-}
-
-esp_err_t
-WS_Station_Stop(void)
-{
-    if (NULL != s_hHttpServer)
-    {
-        httpd_stop(s_hHttpServer);
-        s_hHttpServer = NULL;
-        ESP_LOGI(TAG, "STA HTTP server stopped");
-    }
-
-    return ESP_OK;
 }

@@ -24,8 +24,7 @@ const char* WS_React_FileServer_GetMime(const char* path);
  * @param out_gz   Set to true when the resolved file is gzip-compressed.
  * @return         ESP_OK when a matching file exists, ESP_ERR_NOT_FOUND otherwise.
  */
-esp_err_t 
-WS_React_FileServer_ResolvePath(const char* uri,
+esp_err_t WS_React_FileServer_ResolvePath(const char* uri,
                                           char*        out_path,
                                           size_t       out_len,
                                           bool*        out_gz);
@@ -36,9 +35,7 @@ WS_React_FileServer_ResolvePath(const char* uri,
  * Sets Content-Type and, when is_gz is true, Content-Encoding: gzip.
  * Sends the terminating zero-length chunk on success.
  */
-esp_err_t 
-WS_React_FileServer_ServeFile(httpd_req_t* req,
+esp_err_t WS_React_FileServer_ServeFile(httpd_req_t* req,
                                         const char*  path,
                                         const char*  mime,
                                         bool         is_gz);
-    

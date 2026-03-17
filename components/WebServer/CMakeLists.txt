@@ -9,6 +9,8 @@ idf_component_register(
         "src/React/Ws_React.c"
         "src/React/WS_React_FileServer.c"
         "src/React/WS_React_Routes.c"
+        "src/React/RestAPI/Example/ExampleAPI.c"
+        "src/React/RestAPI/Schedule/ScheduleAPI.c"
     INCLUDE_DIRS "src"
     REQUIRES
         esp_http_server
@@ -19,4 +21,7 @@ idf_component_register(
         json
         WiFi_Manager
         Generic
+        Scheduler
+        RingBell
+        TimeSync
 )

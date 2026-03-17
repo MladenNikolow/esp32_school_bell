@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "src/RingBell_API.c"
     INCLUDE_DIRS "src"
-    REQUIRES driver esp_timer
+    REQUIRES driver esp_timer nvs_flash
 )

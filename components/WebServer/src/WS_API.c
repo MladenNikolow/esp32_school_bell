@@ -82,7 +82,7 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
 
                     if(ESP_OK == espErr)
                     {
-                        espErr = WS_Station_Start();
+                        espErr = WS_Station_Start(ptRsc->tParams.hScheduler);
                     }
                     
                     break;
@@ -252,10 +252,6 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
                                             ptRsc->hNetif, 
                                             NULL);
     }
-
-    /* Give the event handlers a reference to the WiFi Manager so the
-       fallback AP can be started if the STA connection drops. */
-    Ws_EventHandlers_SetWiFiManager(ptRsc->tParams.hWiFiManager);
                              
     if(ESP_OK == espErr) 
     {

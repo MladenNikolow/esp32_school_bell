@@ -39,7 +39,7 @@ This project is designed for the [Waveshare ESP32-S3-Touch-LCD-4](https://www.wa
 
 ### Architecture
 
-The project is structured using ESP-IDF v.5.3.4 (Espressif IoT Development Framework) with FreeRTOS as the underlying operating system. The codebase is modular, with separate libraries for each major component:
+The project is structured using ESP-IDF v.5.3.1 (Espressif IoT Development Framework) with FreeRTOS as the underlying operating system. The codebase is modular, with separate libraries for each major component:
 
 #### Core Components
 
@@ -79,7 +79,7 @@ The ESP32 flash is partitioned as follows (from `partitions/esp32_flash_3mb_fatf
 
 - **Platform**: ESP-IDF (Espressif IoT Development Framework)
 - **Build Tool**: PlatformIO
-- **Framework**: ESP-IDF (Arduino-free) v.5.3.4
+- **Framework**: ESP-IDF (Arduino-free) v.5.3.1
 - **Board**: esp32dev (configured for ESP32-S3)
 
 ### Development Setup

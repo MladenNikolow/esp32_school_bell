@@ -13,5 +13,12 @@
  * The HTTP server must have been started with uri_match_fn = httpd_uri_match_wildcard
  * so that the assets pattern is evaluated correctly.
  */
-esp_err_t 
-Ws_React_RegisterRoutes(httpd_handle_t hHttpServer);
+esp_err_t Ws_React_RegisterRoutes(httpd_handle_t hHttpServer);
+
+/**
+ * @brief Register the catch-all fallback route (wildcard).
+ *
+ * Must be called AFTER all other GET handlers are registered,
+ * because httpd_uri_match_wildcard treats the wildcard as matching every URI.
+ */
+esp_err_t Ws_React_RegisterCatchAll(httpd_handle_t hHttpServer);
