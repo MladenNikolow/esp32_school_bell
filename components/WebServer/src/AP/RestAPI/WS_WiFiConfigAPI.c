@@ -256,8 +256,15 @@ wifiConfigApi_GetNetworks(httpd_req_t* ptReq)
 
     for (uint16_t i = 0; i < usApCount; i++)
     {
+        char acBssid[18]; /* "AA:BB:CC:DD:EE:FF" + '\0' */
+        snprintf(acBssid, sizeof(acBssid), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 ptApRecords[i].bssid[0], ptApRecords[i].bssid[1],
+                 ptApRecords[i].bssid[2], ptApRecords[i].bssid[3],
+                 ptApRecords[i].bssid[4], ptApRecords[i].bssid[5]);
+
         cJSON* ptEntry = cJSON_CreateObject();
         cJSON_AddStringToObject(ptEntry, "ssid",     (char*)ptApRecords[i].ssid);
+        cJSON_AddStringToObject(ptEntry, "bssid",    acBssid);
         cJSON_AddNumberToObject(ptEntry, "rssi",     ptApRecords[i].rssi);
         cJSON_AddNumberToObject(ptEntry, "channel",  ptApRecords[i].primary);
         cJSON_AddStringToObject(ptEntry, "authmode", wifiConfigApi_AuthmodeToStr(ptApRecords[i].authmode));
