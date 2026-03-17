@@ -82,7 +82,7 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
 
                     if(ESP_OK == espErr)
                     {
-                        espErr = WS_Station_Start();
+                        espErr = WS_Station_Start(ptRsc->tParams.hScheduler);
                     }
                     
                     break;

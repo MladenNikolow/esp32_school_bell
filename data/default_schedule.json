@@ -1,0 +1,38 @@
+{
+  "_comment": "Default settings for ESP32 School Bell. Edit this file to change first-boot defaults.",
+  "_schedule_note": "45-min classes, 10-min breaks, 35-min big break after class 3. Bells ring at class start/end only.",
+
+  "timezone": "EET-2EEST,M3.5.0/3,M10.5.0/4",
+  "workingDays": [1, 2, 3, 4, 5],
+
+  "firstShift": {
+    "enabled": true,
+    "bells": [
+      { "hour":  8, "minute":  0, "durationSec": 3, "label": "Class 1 start" },
+      { "hour":  8, "minute": 45, "durationSec": 3, "label": "Class 1 end" },
+      { "hour":  8, "minute": 55, "durationSec": 3, "label": "Class 2 start" },
+      { "hour":  9, "minute": 40, "durationSec": 3, "label": "Class 2 end" },
+      { "hour":  9, "minute": 50, "durationSec": 3, "label": "Class 3 start" },
+      { "hour": 10, "minute": 35, "durationSec": 3, "label": "Class 3 end" },
+      { "hour": 11, "minute": 10, "durationSec": 3, "label": "Class 4 start" },
+      { "hour": 11, "minute": 55, "durationSec": 3, "label": "Class 4 end" },
+      { "hour": 12, "minute":  5, "durationSec": 3, "label": "Class 5 start" },
+      { "hour": 12, "minute": 50, "durationSec": 3, "label": "Class 5 end" },
+      { "hour": 13, "minute":  0, "durationSec": 3, "label": "Class 6 start" },
+      { "hour": 13, "minute": 45, "durationSec": 3, "label": "Class 6 end" }
+    ]
+  },
+  "secondShift": {
+    "enabled": true,
+    "bells": [
+      { "hour": 14, "minute":  0, "durationSec": 3, "label": "Class 7 start" },
+      { "hour": 14, "minute": 45, "durationSec": 3, "label": "Class 7 end" },
+      { "hour": 14, "minute": 55, "durationSec": 3, "label": "Class 8 start" },
+      { "hour": 15, "minute": 40, "durationSec": 3, "label": "Class 8 end" }
+    ]
+  },
+
+  "holidays": [],
+  "exceptionWorking": [],
+  "exceptionHoliday": []
+}

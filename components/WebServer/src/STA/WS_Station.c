@@ -1,12 +1,25 @@
 #include "WS_Station.h"
 #include "esp_http_server.h"
 #include "React/Ws_React.h"
+#include "React/WS_React_Routes.h"
 #include "React/RestAPI/Example/ExampleAPI.h"
+#include "React/RestAPI/Schedule/ScheduleAPI.h"
 
 static EXAMPLE_API_H s_hExampleApi = NULL;
+static SCHEDULE_API_H s_hScheduleApi = NULL;
+
+/* Minimal /api/wifi/status for STA mode so the React frontend can
+   distinguish AP from STA without hitting the catch-all file server. */
+static esp_err_t
+ws_Station_WifiStatusHandler(httpd_req_t* ptReq)
+{
+    httpd_resp_set_type(ptReq, "application/json");
+    httpd_resp_sendstr(ptReq, "{\"mode\":\"STA\"}");
+    return ESP_OK;
+}
 
 esp_err_t
-WS_Station_Start(void)
+WS_Station_Start(SCHEDULER_H hScheduler)
 {
     esp_err_t espRslt = ESP_OK;
     httpd_config_t tHttpServerConfig = HTTPD_DEFAULT_CONFIG();
@@ -42,15 +55,34 @@ WS_Station_Start(void)
         espRslt = ExampleAPI_Register(s_hExampleApi, hHttpServer);
     }
 
-    // if (ESP_OK == espErr)
-    // {
-    //     espErr = httpd_register_uri_handler(server, &schedule_config_get);
-    // }
+    if (ESP_OK == espRslt)
+    {
+        SCHEDULE_API_PARAMS_T tScheduleParams = { .hScheduler = hScheduler };
+        espRslt = ScheduleAPI_Init(&tScheduleParams, &s_hScheduleApi);
+    }
 
-    // if(ESP_OK == espErr)
-    // {
-    //     espErr =  httpd_register_uri_handler(server, &schedule_config_post);
-    //}
+    if (ESP_OK == espRslt)
+    {
+        espRslt = ScheduleAPI_Register(s_hScheduleApi, hHttpServer);
+    }
+
+    /* WiFi status endpoint — lets the frontend detect STA mode */
+    if (ESP_OK == espRslt)
+    {
+        httpd_uri_t tWifiStatus = {
+            .uri      = "/api/wifi/status",
+            .method   = HTTP_GET,
+            .handler  = ws_Station_WifiStatusHandler,
+            .user_ctx = NULL,
+        };
+        espRslt = httpd_register_uri_handler(hHttpServer, &tWifiStatus);
+    }
+
+    /* Register the catch-all wildcard LAST so it does not shadow API routes */
+    if (ESP_OK == espRslt)
+    {
+        espRslt = Ws_React_RegisterCatchAll(hHttpServer);
+    }
 
     return espRslt;
 }

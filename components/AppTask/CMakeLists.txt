@@ -16,4 +16,7 @@ idf_component_register(
             WebServer
             FileSystem
             TouchScreen
+            TimeSync
+            Scheduler
+            RingBell
 )

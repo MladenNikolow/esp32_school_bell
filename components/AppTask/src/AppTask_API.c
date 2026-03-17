@@ -5,6 +5,10 @@
 #include "NVS_API.h"
 #include "Ws_API.h"
 #include "FatFS_API.h"
+#include "SPIFFS_API.h"
+#include "TimeSync_API.h"
+#include "Scheduler_API.h"
+#include "RingBell_API.h"
 #include "TouchScreen_API.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -24,6 +28,7 @@ typedef struct _APP_TASK_RSC_T
     WIFI_MANAGER_H       hWiFiManager;          /* WiFi manager handle */
     WEB_SERVER_H         hWebServer;            /* Web server handle */
     TOUCHSCREEN_H        hTouchScreen;          /* Touch screen handle */
+    SCHEDULER_H          hScheduler;            /* Scheduler handle */
 } APP_TASK_RSC_T;
 
 static void 
@@ -155,6 +160,20 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
 
     if(APP_SUCCESS == lResult)
     {
+        ESP_LOGI(TAG, "Start SPIFFS Initialization.");
+
+        esp_err_t spiffsErr = SPIFFS_Init();
+        if (ESP_OK != spiffsErr)
+        {
+            ESP_LOGE(TAG, "SPIFFS init failed: %s", esp_err_to_name(spiffsErr));
+            lResult = APP_ERROR_INIT_FAILED;
+        }
+
+        ESP_LOGI(TAG, "Finish SPIFFS Initialization.");
+    }
+
+    if(APP_SUCCESS == lResult)
+    {
         ESP_LOGE(TAG, "Start Touch Screen Display Initialization.");
 
         lResult = TouchScreen_DisplayInit();
@@ -175,6 +194,36 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
         ESP_LOGE(TAG, "Finish WiFi Initialization with result: %" PRIu32, lResult);
     }
 
+    /* RingBell: Initialize bell GPIO and duration timer */
+    if(APP_SUCCESS == lResult)
+    {
+        ESP_LOGI(TAG, "Start RingBell Initialization.");
+
+        esp_err_t bellErr = RingBell_Init();
+        if (ESP_OK != bellErr)
+        {
+            ESP_LOGE(TAG, "RingBell init failed: %s", esp_err_to_name(bellErr));
+            lResult = APP_ERROR_INIT_FAILED;
+        }
+
+        ESP_LOGI(TAG, "Finish RingBell Initialization.");
+    }
+
+    /* Scheduler: Load schedule data and start background task */
+    if(APP_SUCCESS == lResult)
+    {
+        ESP_LOGI(TAG, "Start Scheduler Initialization.");
+
+        esp_err_t schedErr = Scheduler_Init(&ptAppTaskRsc->hScheduler);
+        if (ESP_OK != schedErr)
+        {
+            ESP_LOGE(TAG, "Scheduler init failed: %s", esp_err_to_name(schedErr));
+            lResult = APP_ERROR_INIT_FAILED;
+        }
+
+        ESP_LOGI(TAG, "Finish Scheduler Initialization.");
+    }
+
     if(APP_SUCCESS == lResult)
     {
         ESP_LOGE(TAG, "Start Web Server Initialization.");
@@ -182,10 +231,19 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
         WEB_SERVER_PARAMS_T tWebServerParams = 
         {
             .hWiFiManager = ptAppTaskRsc->hWiFiManager,
+            .hScheduler   = ptAppTaskRsc->hScheduler,
         };
 
         lResult = Ws_Init(&tWebServerParams, &ptAppTaskRsc->hWebServer);
         ESP_LOGE(TAG, "Finish Web Server Initialization with result: %" PRIu32, lResult);
+    }
+
+    /* TimeSync: Initialize SNTP after Ws_Init (requires TCP/IP stack) */
+    if(APP_SUCCESS == lResult)
+    {
+        ESP_LOGI(TAG, "Start TimeSync Initialization.");
+        TimeSync_Init();
+        ESP_LOGI(TAG, "Finish TimeSync Initialization.");
     }
 
     /* ========== PHASE 4: UI Initialization & Presentation ========== */

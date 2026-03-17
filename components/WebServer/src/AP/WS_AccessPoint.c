@@ -40,6 +40,12 @@ WS_AccessPoint_Start(WIFI_MANAGER_H hWiFiManager)
         espRslt = WiFiConfigAPI_Register(s_hWifiConfigApi, hHttpServer);
     }
 
+    /* Register the catch-all wildcard LAST so it does not shadow API routes */
+    if (ESP_OK == espRslt)
+    {
+        espRslt = Ws_React_RegisterCatchAll(hHttpServer);
+    }
+
     if (ESP_OK == espRslt)
     {
         ESP_LOGI(TAG, "AP HTTP server started (React + WiFi Config API)");

@@ -16,10 +16,16 @@ static const char* TAG = "WS_EVENT_HANDLERS";
      attempt 1 : 10 s
      attempt 2 : 20 s
      attempt 3 : 40 s
-     attempt 4+: 60 s  (capped)
+     attempt 4 : 60 s  (capped)
+
+   After WS_RECONNECT_MAX_RETRIES the device clears stored
+   credentials and restarts into AP-setup mode so the user can
+   reconfigure WiFi (e.g. pick a 2.4 GHz network — ESP32 does
+   not support 5 GHz).
    ---------------------------------------------------------------- */
 #define WS_RECONNECT_DELAY_MIN_MS    5000ULL
 #define WS_RECONNECT_DELAY_MAX_MS   60000ULL
+#define WS_RECONNECT_MAX_RETRIES     5U
 
 static esp_timer_handle_t s_hReconnectTimer = NULL;
 static uint32_t           s_ulRetryCount    = 0;
@@ -35,6 +41,18 @@ ws_ReconnectTimerCb(void* pvArg)
 static void
 ws_ScheduleReconnect(void)
 {
+    /* All retries exhausted — fall back to AP setup mode */
+    if (s_ulRetryCount >= WS_RECONNECT_MAX_RETRIES)
+    {
+        ESP_LOGW(TAG,
+                 "WiFi connection failed after %" PRIu32 " retries — "
+                 "clearing credentials and restarting into AP setup mode.",
+                 s_ulRetryCount);
+        (void)WiFi_Manager_ClearCredentials();
+        esp_restart();
+        return;   /* unreachable, but keeps intent clear */
+    }
+
     /* Exponential back-off: delay = MIN * 2^retries, capped at MAX */
     uint64_t ullDelayMs = WS_RECONNECT_DELAY_MIN_MS;
     for (uint32_t i = 0; i < s_ulRetryCount; i++)
@@ -63,8 +81,8 @@ ws_ScheduleReconnect(void)
         (void)esp_timer_stop(s_hReconnectTimer);
     }
 
-    ESP_LOGI(TAG, "WiFi reconnect scheduled in %" PRIu64 " ms (retry #%" PRIu32 ")",
-             ullDelayMs, s_ulRetryCount);
+    ESP_LOGI(TAG, "WiFi reconnect scheduled in %" PRIu64 " ms (retry #%" PRIu32 " of %u)",
+             ullDelayMs, s_ulRetryCount, WS_RECONNECT_MAX_RETRIES);
 
     (void)esp_timer_start_once(s_hReconnectTimer, ullDelayMs * 1000ULL /* µs */);
 }
