@@ -232,6 +232,16 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
         {
             wifi_init_config_t tWifiInitCfg = WIFI_INIT_CONFIG_DEFAULT();
             espErr = esp_wifi_init(&tWifiInitCfg);
+
+            /* Credentials are managed by WiFi_Manager (own NVS namespace).
+               Prevent the WiFi driver from persisting a duplicate copy —
+               stale driver-level NVS data from a previous AP-mode session
+               can leave the WPA supplicant partially initialised and crash
+               inside pmksa_cache_flush when esp_wifi_set_config is called. */
+            if (ESP_OK == espErr)
+            {
+                espErr = esp_wifi_set_storage(WIFI_STORAGE_RAM);
+            }
         }
     }
     
@@ -283,18 +293,19 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
             tWifiCfg.sta.threshold.authmode = WIFI_AUTH_OPEN;
         }
 
-        /* Initialize WiFi (assumes esp_wifi_init called elsewhere with cfg) */
         espErr = esp_wifi_set_mode(WIFI_MODE_STA);
+    }
+
+    /* Start WiFi BEFORE setting config so the WPA supplicant
+       (including its PMKSA cache) is fully initialised.       */
+    if(ESP_OK == espErr) 
+    {
+        espErr = esp_wifi_start();
     }
 
     if(ESP_OK == espErr) 
     {
         espErr = esp_wifi_set_config(WIFI_IF_STA, &tWifiCfg);
-    }
-    
-    if(ESP_OK == espErr) 
-    {
-        espErr = esp_wifi_start();
     }
     
     if(ESP_OK == espErr)
