@@ -4,6 +4,7 @@
 #include "dashboard_screen_internal.h"
 #include "../../src/ui_manager_internal.h"
 #include "../../src/ui_theme.h"
+#include "../../src/ui_strings.h"
 #include "../../components/card/card_component.h"
 #include "TouchScreen_Services.h"
 #include "TouchScreen_UI_Manager.h"
@@ -44,6 +45,7 @@ static lv_obj_t *s_day_type_lbl  = NULL;
 
 /* Error/warning banner */
 static lv_obj_t *s_warning_banner = NULL;
+static lv_obj_t *s_warning_icon   = NULL;
 static lv_obj_t *s_warning_label  = NULL;
 
 /* Test bell button */
@@ -96,12 +98,12 @@ static void day_on_event_cb(lv_event_t *e);
 static const char *day_type_str(int eDayType)
 {
     switch (eDayType) {
-        case 0: return "Day Off";
-        case 1: return "Working Day";
-        case 2: return "Holiday";
-        case 3: return "Exception (Working)";
-        case 4: return "Exception (Off)";
-        default: return "Unknown";
+        case 0: return ui_str(STR_DAY_OFF);
+        case 1: return ui_str(STR_WORKING_DAY);
+        case 2: return ui_str(STR_HOLIDAY);
+        case 3: return ui_str(STR_EXCEPTION_WORKING);
+        case 4: return ui_str(STR_EXCEPTION_OFF);
+        default: return ui_str(STR_UNKNOWN);
     }
 }
 
@@ -127,9 +129,9 @@ static lv_color_t bell_state_border_color(BELL_STATE_E state)
 static const char *bell_state_str(BELL_STATE_E state)
 {
     switch (state) {
-        case BELL_STATE_RINGING: return "Ringing";
-        case BELL_STATE_PANIC:   return "PANIC";
-        default:                 return "Idle";
+        case BELL_STATE_RINGING: return ui_str(STR_BELL_RINGING);
+        case BELL_STATE_PANIC:   return ui_str(STR_BELL_PANIC);
+        default:                 return ui_str(STR_BELL_IDLE);
     }
 }
 
@@ -188,6 +190,7 @@ void touchscreen_dashboard_screen_destroy(void)
     s_day_date_lbl = NULL;
     s_day_type_lbl = NULL;
     s_warning_banner = NULL;
+    s_warning_icon = NULL;
     s_warning_label = NULL;
     s_test_btn = NULL;
     s_panic_btn = NULL;
@@ -246,12 +249,12 @@ static void dashboard_create_bell_status_card(lv_obj_t *parent)
     lv_obj_set_scrollbar_mode(col, LV_SCROLLBAR_MODE_OFF);
 
     lv_obj_t *title = lv_label_create(col);
-    lv_label_set_text(title, "Bell Status");
+    lv_label_set_text(title, ui_str(STR_BELL_STATUS));
     lv_obj_set_style_text_font(title, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_color(title, UI_COLOR_TEXT_SECONDARY, 0);
 
     s_bell_state_lbl = lv_label_create(col);
-    lv_label_set_text(s_bell_state_lbl, "Idle");
+    lv_label_set_text(s_bell_state_lbl, ui_str(STR_BELL_IDLE));
     lv_obj_set_style_text_font(s_bell_state_lbl, UI_FONT_H3, 0);
     lv_obj_set_style_text_color(s_bell_state_lbl, UI_COLOR_TEXT_PRIMARY, 0);
 
@@ -266,7 +269,7 @@ static void dashboard_create_bell_status_card(lv_obj_t *parent)
 
     /* Next bell section */
     s_next_bell_lbl = lv_label_create(card);
-    lv_label_set_text(s_next_bell_lbl, "Next Bell");
+    lv_label_set_text(s_next_bell_lbl, ui_str(STR_NEXT_BELL));
     lv_obj_set_style_text_font(s_next_bell_lbl, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_color(s_next_bell_lbl, UI_COLOR_TEXT_SECONDARY, 0);
 
@@ -320,7 +323,7 @@ static void dashboard_create_info_cards(lv_obj_t *parent)
     lv_obj_set_scrollbar_mode(date_col, LV_SCROLLBAR_MODE_OFF);
 
     lv_obj_t *date_title = lv_label_create(date_col);
-    lv_label_set_text(date_title, "Date");
+    lv_label_set_text(date_title, ui_str(STR_DATE));
     lv_obj_set_style_text_font(date_title, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_color(date_title, UI_COLOR_TEXT_SECONDARY, 0);
 
@@ -363,7 +366,7 @@ static void dashboard_create_info_cards(lv_obj_t *parent)
     lv_obj_set_scrollbar_mode(type_col, LV_SCROLLBAR_MODE_OFF);
 
     lv_obj_t *type_title = lv_label_create(type_col);
-    lv_label_set_text(type_title, "Day Type");
+    lv_label_set_text(type_title, ui_str(STR_DAY_TYPE));
     lv_obj_set_style_text_font(type_title, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_color(type_title, UI_COLOR_TEXT_SECONDARY, 0);
 
@@ -396,10 +399,17 @@ static void dashboard_create_action_buttons(lv_obj_t *parent)
     s_test_btn = lv_button_create(row);
     lv_obj_set_size(s_test_btn, ACTION_BTN_W, ACTION_BTN_H);
     ui_theme_apply_btn_primary(s_test_btn);
+    lv_obj_set_flex_flow(s_test_btn, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_test_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(s_test_btn, 6, 0);
 
-    lv_obj_t *test_label = lv_label_create(s_test_btn);
-    lv_label_set_text(test_label, LV_SYMBOL_BELL "  Ring");
-    lv_obj_center(test_label);
+    lv_obj_t *test_icon = lv_label_create(s_test_btn);
+    lv_label_set_text(test_icon, LV_SYMBOL_BELL);
+    lv_obj_set_style_text_color(test_icon, UI_COLOR_TEXT_ON_PRIMARY, 0);
+
+    lv_obj_t *test_text = lv_label_create(s_test_btn);
+    lv_label_set_text(test_text, ui_str(STR_RING));
+    lv_obj_set_style_text_color(test_text, UI_COLOR_TEXT_ON_PRIMARY, 0);
 
     lv_obj_add_event_cb(s_test_btn, test_bell_event_cb, LV_EVENT_CLICKED, NULL);
 
@@ -415,11 +425,19 @@ static void dashboard_create_action_buttons(lv_obj_t *parent)
     lv_obj_set_style_shadow_opa(s_panic_btn, LV_OPA_20, 0);
     lv_obj_set_style_shadow_offset_y(s_panic_btn, 2, 0);
 
+    lv_obj_set_flex_flow(s_panic_btn, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_panic_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(s_panic_btn, 6, 0);
+
+    lv_obj_t *panic_icon = lv_label_create(s_panic_btn);
+    lv_label_set_text(panic_icon, LV_SYMBOL_WARNING);
+    lv_obj_set_style_text_font(panic_icon, UI_FONT_BODY, 0);
+    lv_obj_set_style_text_color(panic_icon, UI_COLOR_TEXT_ON_PRIMARY, 0);
+
     s_panic_label = lv_label_create(s_panic_btn);
-    lv_label_set_text(s_panic_label, LV_SYMBOL_WARNING " PANIC");
+    lv_label_set_text(s_panic_label, ui_str(STR_PANIC));
     lv_obj_set_style_text_font(s_panic_label, UI_FONT_BODY, 0);
     lv_obj_set_style_text_color(s_panic_label, UI_COLOR_TEXT_ON_PRIMARY, 0);
-    lv_obj_center(s_panic_label);
 
     lv_obj_add_event_cb(s_panic_btn, panic_fab_event_cb, LV_EVENT_CLICKED, NULL);
 }
@@ -450,11 +468,19 @@ static void dashboard_create_day_override_buttons(lv_obj_t *parent)
     lv_obj_set_style_shadow_opa(s_day_off_btn, LV_OPA_20, 0);
     lv_obj_set_style_shadow_offset_y(s_day_off_btn, 2, 0);
 
+    lv_obj_set_flex_flow(s_day_off_btn, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_day_off_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(s_day_off_btn, 6, 0);
+
+    lv_obj_t *off_icon = lv_label_create(s_day_off_btn);
+    lv_label_set_text(off_icon, LV_SYMBOL_CLOSE);
+    lv_obj_set_style_text_font(off_icon, UI_FONT_BODY, 0);
+    lv_obj_set_style_text_color(off_icon, UI_COLOR_TEXT_ON_PRIMARY, 0);
+
     s_day_off_label = lv_label_create(s_day_off_btn);
-    lv_label_set_text(s_day_off_label, LV_SYMBOL_CLOSE "  Day Off");
+    lv_label_set_text(s_day_off_label, ui_str(STR_DAY_OFF_BTN));
     lv_obj_set_style_text_font(s_day_off_label, UI_FONT_BODY, 0);
     lv_obj_set_style_text_color(s_day_off_label, UI_COLOR_TEXT_ON_PRIMARY, 0);
-    lv_obj_center(s_day_off_label);
 
     lv_obj_add_event_cb(s_day_off_btn, day_off_event_cb, LV_EVENT_CLICKED, NULL);
 
@@ -470,11 +496,19 @@ static void dashboard_create_day_override_buttons(lv_obj_t *parent)
     lv_obj_set_style_shadow_opa(s_day_on_btn, LV_OPA_20, 0);
     lv_obj_set_style_shadow_offset_y(s_day_on_btn, 2, 0);
 
+    lv_obj_set_flex_flow(s_day_on_btn, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_day_on_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(s_day_on_btn, 6, 0);
+
+    lv_obj_t *on_icon = lv_label_create(s_day_on_btn);
+    lv_label_set_text(on_icon, LV_SYMBOL_OK);
+    lv_obj_set_style_text_font(on_icon, UI_FONT_BODY, 0);
+    lv_obj_set_style_text_color(on_icon, UI_COLOR_TEXT_ON_PRIMARY, 0);
+
     s_day_on_label = lv_label_create(s_day_on_btn);
-    lv_label_set_text(s_day_on_label, LV_SYMBOL_OK "  Day On");
+    lv_label_set_text(s_day_on_label, ui_str(STR_DAY_ON_BTN));
     lv_obj_set_style_text_font(s_day_on_label, UI_FONT_BODY, 0);
     lv_obj_set_style_text_color(s_day_on_label, UI_COLOR_TEXT_ON_PRIMARY, 0);
-    lv_obj_center(s_day_on_label);
 
     lv_obj_add_event_cb(s_day_on_btn, day_on_event_cb, LV_EVENT_CLICKED, NULL);
 }
@@ -621,7 +655,7 @@ static void dashboard_refresh_bell_status(void)
             lv_label_set_text(s_next_bell_time, "--:--");
         }
         if (s_next_bell_info) {
-            lv_label_set_text(s_next_bell_info, "No upcoming bells");
+            lv_label_set_text(s_next_bell_info, ui_str(STR_NO_UPCOMING_BELLS));
         }
     }
 
@@ -638,9 +672,17 @@ static void dashboard_refresh_info_cards(void)
     if (s_day_date_lbl) {
         if (err == ESP_OK && tStatus.bTimeSynced) {
             char buf[32];
-            const char *days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-            const char *months[] = {"Jan","Feb","Mar","Apr","May","Jun",
-                                    "Jul","Aug","Sep","Oct","Nov","Dec"};
+            const char *days[] = {
+                ui_str(STR_DAY_SUN), ui_str(STR_DAY_MON), ui_str(STR_DAY_TUE),
+                ui_str(STR_DAY_WED), ui_str(STR_DAY_THU), ui_str(STR_DAY_FRI),
+                ui_str(STR_DAY_SAT)
+            };
+            const char *months[] = {
+                ui_str(STR_MON_JAN), ui_str(STR_MON_FEB), ui_str(STR_MON_MAR),
+                ui_str(STR_MON_APR), ui_str(STR_MON_MAY), ui_str(STR_MON_JUN),
+                ui_str(STR_MON_JUL), ui_str(STR_MON_AUG), ui_str(STR_MON_SEP),
+                ui_str(STR_MON_OCT), ui_str(STR_MON_NOV), ui_str(STR_MON_DEC)
+            };
             int wday = tStatus.tCurrentTime.tm_wday;
             int mon  = tStatus.tCurrentTime.tm_mon;
             if (wday < 0 || wday > 6) wday = 0;
@@ -651,7 +693,7 @@ static void dashboard_refresh_info_cards(void)
                      tStatus.tCurrentTime.tm_mday);
             lv_label_set_text(s_day_date_lbl, buf);
         } else {
-            lv_label_set_text(s_day_date_lbl, "No time sync");
+            lv_label_set_text(s_day_date_lbl, ui_str(STR_NO_TIME_SYNC));
         }
     }
 
@@ -674,9 +716,9 @@ static void dashboard_refresh_panic_fab(void)
 
     if (s_panic_label) {
         if (is_panic) {
-            lv_label_set_text(s_panic_label, LV_SYMBOL_WARNING " STOP");
+            lv_label_set_text(s_panic_label, ui_str(STR_STOP));
         } else {
-            lv_label_set_text(s_panic_label, LV_SYMBOL_WARNING " PANIC");
+            lv_label_set_text(s_panic_label, ui_str(STR_PANIC));
         }
     }
 
@@ -708,9 +750,9 @@ static void dashboard_refresh_day_override_buttons(void)
 
     if (s_day_off_label) {
         if (override == (int)EXCEPTION_ACTION_DAY_OFF) {
-            lv_label_set_text(s_day_off_label, LV_SYMBOL_CLOSE " Cancel Off");
+            lv_label_set_text(s_day_off_label, ui_str(STR_CANCEL_OFF));
         } else {
-            lv_label_set_text(s_day_off_label, LV_SYMBOL_CLOSE "  Day Off");
+            lv_label_set_text(s_day_off_label, ui_str(STR_DAY_OFF_BTN));
         }
     }
     if (s_day_off_btn) {
@@ -723,9 +765,9 @@ static void dashboard_refresh_day_override_buttons(void)
 
     if (s_day_on_label) {
         if (override == (int)EXCEPTION_ACTION_NORMAL) {
-            lv_label_set_text(s_day_on_label, LV_SYMBOL_OK " Cancel On");
+            lv_label_set_text(s_day_on_label, ui_str(STR_CANCEL_ON));
         } else {
-            lv_label_set_text(s_day_on_label, LV_SYMBOL_OK "  Day On");
+            lv_label_set_text(s_day_on_label, ui_str(STR_DAY_ON_BTN));
         }
     }
     if (s_day_on_btn) {
@@ -752,14 +794,21 @@ static void dashboard_create_warning_banner(lv_obj_t *parent)
     lv_obj_set_style_border_width(s_warning_banner, 0, 0);
     lv_obj_set_style_pad_all(s_warning_banner, UI_PAD_SMALL, 0);
     lv_obj_set_scrollbar_mode(s_warning_banner, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_flex_flow(s_warning_banner, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_warning_banner, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(s_warning_banner, 6, 0);
+
+    s_warning_icon = lv_label_create(s_warning_banner);
+    lv_label_set_text(s_warning_icon, LV_SYMBOL_WARNING);
+    lv_obj_set_style_text_color(s_warning_icon, UI_COLOR_TEXT_ON_PRIMARY, 0);
+    lv_obj_set_style_text_font(s_warning_icon, UI_FONT_CAPTION, 0);
 
     s_warning_label = lv_label_create(s_warning_banner);
     lv_obj_set_style_text_color(s_warning_label, UI_COLOR_TEXT_ON_PRIMARY, 0);
     lv_obj_set_style_text_font(s_warning_label, UI_FONT_CAPTION, 0);
     lv_label_set_text(s_warning_label, "");
-    lv_obj_set_width(s_warning_label, CONTENT_WIDTH - 2 * UI_PAD_SMALL);
+    lv_obj_set_flex_grow(s_warning_label, 1);
     lv_label_set_long_mode(s_warning_label, LV_LABEL_LONG_WRAP);
-    lv_obj_center(s_warning_label);
 
     /* Hidden by default */
     lv_obj_add_flag(s_warning_banner, LV_OBJ_FLAG_HIDDEN);
@@ -777,24 +826,24 @@ static void dashboard_refresh_warning_banner(void)
     bsp_display_lock(0);
 
     if (!wifi_ok && !ntp_ok) {
-        lv_label_set_text(s_warning_label, LV_SYMBOL_WARNING "  WiFi disconnected | Time not synced");
+        lv_label_set_text(s_warning_label, ui_str(STR_WARN_WIFI_AND_TIME));
         lv_obj_set_style_bg_color(s_warning_banner, UI_COLOR_DANGER, 0);
         lv_obj_clear_flag(s_warning_banner, LV_OBJ_FLAG_HIDDEN);
     } else if (!wifi_ok) {
-        lv_label_set_text(s_warning_label, LV_SYMBOL_WARNING "  WiFi disconnected");
+        lv_label_set_text(s_warning_label, ui_str(STR_WARN_WIFI_DISCONNECTED));
         lv_obj_set_style_bg_color(s_warning_banner, UI_COLOR_WARNING, 0);
         lv_obj_clear_flag(s_warning_banner, LV_OBJ_FLAG_HIDDEN);
     } else if (!ntp_ok && tStatus.ulLastSyncAgeSec != UINT32_MAX
                && tStatus.ulLastSyncAgeSec > 0) {
-        char warn_buf[64];
+        char warn_buf[96];
         uint32_t mins = tStatus.ulLastSyncAgeSec / 60;
         snprintf(warn_buf, sizeof(warn_buf),
-                 LV_SYMBOL_WARNING "  Time stale (last sync %" PRIu32 "m ago)", mins);
+                 ui_str(STR_WARN_TIME_STALE), (unsigned long)mins);
         lv_label_set_text(s_warning_label, warn_buf);
         lv_obj_set_style_bg_color(s_warning_banner, UI_COLOR_WARNING, 0);
         lv_obj_clear_flag(s_warning_banner, LV_OBJ_FLAG_HIDDEN);
     } else if (!ntp_ok) {
-        lv_label_set_text(s_warning_label, LV_SYMBOL_WARNING "  Time not synchronized");
+        lv_label_set_text(s_warning_label, ui_str(STR_WARN_TIME_NOT_SYNCED));
         lv_obj_set_style_bg_color(s_warning_banner, UI_COLOR_WARNING, 0);
         lv_obj_clear_flag(s_warning_banner, LV_OBJ_FLAG_HIDDEN);
     } else {

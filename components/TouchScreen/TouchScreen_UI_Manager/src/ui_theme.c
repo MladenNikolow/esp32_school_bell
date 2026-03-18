@@ -7,6 +7,18 @@ void ui_theme_init(void)
 {
     ESP_LOGI(TAG, "Initializing Material Design theme");
 
+    /* Set up font fallback chain: custom Cyrillic fonts -> built-in LVGL
+     * Montserrat fonts (same size) that include FontAwesome symbol glyphs.
+     * This lets LV_SYMBOL_* render correctly from the fallback font while
+     * Cyrillic text renders from the primary custom font. */
+    font_montserrat_cyrillic_12.fallback = &lv_font_montserrat_12;
+    font_montserrat_cyrillic_14.fallback = &lv_font_montserrat_14;
+    font_montserrat_cyrillic_16.fallback = &lv_font_montserrat_16;
+    font_montserrat_cyrillic_18.fallback = &lv_font_montserrat_18;
+    font_montserrat_cyrillic_20.fallback = &lv_font_montserrat_20;
+    font_montserrat_cyrillic_24.fallback = &lv_font_montserrat_24;
+    font_montserrat_cyrillic_28.fallback = &lv_font_montserrat_28;
+
     lv_display_t *disp = lv_display_get_default();
     if (!disp) {
         ESP_LOGE(TAG, "No display found");

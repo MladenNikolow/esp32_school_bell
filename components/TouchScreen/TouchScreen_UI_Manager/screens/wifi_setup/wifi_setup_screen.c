@@ -16,6 +16,7 @@
 #include "../../components/wifi_list_item/wifi_list_item_component.h"
 #include "../../components/input_field/input_field_component.h"
 #include "../../src/ui_theme.h"
+#include "../../src/ui_strings.h"
 #include "../../src/ui_config.h"
 #include "TouchScreen_Services.h"
 #include "TouchScreen_UI_Manager.h"
@@ -418,7 +419,7 @@ on_conn_timer(lv_timer_t *timer)
         }
         if (s_conn_spinner) lv_obj_add_flag(s_conn_spinner, LV_OBJ_FLAG_HIDDEN);
         if (s_conn_status) {
-            lv_label_set_text(s_conn_status, LV_SYMBOL_OK "  Connected!");
+            lv_label_set_text_fmt(s_conn_status, LV_SYMBOL_OK "  %s", ui_str(STR_CONNECTED));
             lv_obj_set_style_text_color(s_conn_status, UI_COLOR_SUCCESS, 0);
         }
         if (s_conn_back) lv_obj_add_flag(s_conn_back, LV_OBJ_FLAG_HIDDEN);
@@ -441,7 +442,7 @@ on_conn_timer(lv_timer_t *timer)
         }
         if (s_conn_spinner) lv_obj_add_flag(s_conn_spinner, LV_OBJ_FLAG_HIDDEN);
         if (s_conn_status) {
-            lv_label_set_text(s_conn_status, "Connecting in background...");
+            lv_label_set_text(s_conn_status, ui_str(STR_CONNECTING_BG));
             lv_obj_set_style_text_color(s_conn_status, UI_COLOR_TEXT_SECONDARY, 0);
         }
         if (s_conn_back) lv_obj_add_flag(s_conn_back, LV_OBJ_FLAG_HIDDEN);
@@ -540,13 +541,13 @@ view_show_list(void)
     lv_obj_add_event_cb(s_scan_btn, on_scan_btn, LV_EVENT_CLICKED, NULL);
 
     s_scan_btn_lbl = lv_label_create(s_scan_btn);
-    lv_label_set_text(s_scan_btn_lbl, LV_SYMBOL_REFRESH " Scan");
+    lv_label_set_text_fmt(s_scan_btn_lbl, LV_SYMBOL_REFRESH " %s", ui_str(STR_SCAN));
     lv_obj_set_style_text_color(s_scan_btn_lbl, UI_COLOR_TEXT_ON_PRIMARY, 0);
     lv_obj_set_style_text_font(s_scan_btn_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(s_scan_btn_lbl);
 
     s_status_label = lv_label_create(s_top_row);
-    lv_label_set_text(s_status_label, "Tap Scan to find networks");
+    lv_label_set_text(s_status_label, ui_str(STR_TAP_SCAN));
     lv_obj_set_style_text_color(s_status_label, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(s_status_label, UI_FONT_CAPTION, 0);
     lv_obj_align(s_status_label, LV_ALIGN_RIGHT_MID, -4, 0);
@@ -570,7 +571,7 @@ view_show_list(void)
 
     /* Placeholder message in list */
     lv_obj_t *placeholder = lv_label_create(s_list);
-    lv_label_set_text(placeholder, "No networks scanned yet.\nPress Scan to search.");
+    lv_label_set_text(placeholder, ui_str(STR_NO_NETWORKS_SCANNED));
     lv_obj_set_style_text_color(placeholder, UI_COLOR_TEXT_DISABLED, 0);
     lv_obj_set_style_text_font(placeholder, UI_FONT_BODY_SMALL, 0);
     lv_obj_set_style_text_align(placeholder, LV_TEXT_ALIGN_CENTER, 0);
@@ -598,7 +599,7 @@ view_show_list(void)
     lv_obj_set_style_bg_opa(s_manual_btn, LV_OPA_20, LV_STATE_PRESSED);
     lv_obj_add_event_cb(s_manual_btn, on_manual_btn, LV_EVENT_CLICKED, NULL);
     lv_obj_t *man_lbl = lv_label_create(s_manual_btn);
-    lv_label_set_text(man_lbl, "Enter SSID manually");
+    lv_label_set_text(man_lbl, ui_str(STR_ENTER_SSID_MANUALLY));
     lv_obj_set_style_text_color(man_lbl, UI_COLOR_PRIMARY, 0);
     lv_obj_set_style_text_font(man_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(man_lbl);
@@ -611,7 +612,8 @@ view_show_list(void)
     lv_obj_set_style_radius(s_skip_btn, UI_BTN_RADIUS, 0);
     lv_obj_add_event_cb(s_skip_btn, on_skip_btn, LV_EVENT_CLICKED, NULL);
     lv_obj_t *skip_lbl = lv_label_create(s_skip_btn);
-    lv_label_set_text(skip_lbl, s_is_initial_setup ? "Skip" : LV_SYMBOL_LEFT " Back");
+    lv_label_set_text_fmt(skip_lbl, s_is_initial_setup ? "%s" : LV_SYMBOL_LEFT " %s",
+                           ui_str(s_is_initial_setup ? STR_SKIP : STR_BACK));
     lv_obj_set_style_text_color(skip_lbl, UI_COLOR_TEXT_ON_PRIMARY, 0);
     lv_obj_set_style_text_font(skip_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(skip_lbl);
@@ -646,7 +648,7 @@ do_scan(void)
     bsp_display_lock(0);
 
     /* Update button to scanning state */
-    if (s_scan_btn_lbl) lv_label_set_text(s_scan_btn_lbl, LV_SYMBOL_REFRESH " Scanning...");
+    if (s_scan_btn_lbl) lv_label_set_text_fmt(s_scan_btn_lbl, LV_SYMBOL_REFRESH " %s", ui_str(STR_SCANNING));
     if (s_scan_btn) lv_obj_add_state(s_scan_btn, LV_STATE_DISABLED);
     if (s_status_label) lv_label_set_text(s_status_label, "");
 
@@ -654,7 +656,7 @@ do_scan(void)
     if (s_list) {
         lv_obj_clean(s_list);
         lv_obj_t *scanning = lv_label_create(s_list);
-        lv_label_set_text(scanning, LV_SYMBOL_REFRESH "  Scanning for networks...");
+        lv_label_set_text_fmt(scanning, LV_SYMBOL_REFRESH "  %s", ui_str(STR_SCANNING_NETWORKS));
         lv_obj_set_style_text_color(scanning, UI_COLOR_TEXT_SECONDARY, 0);
         lv_obj_set_style_text_font(scanning, UI_FONT_BODY_SMALL, 0);
         lv_obj_set_style_text_align(scanning, LV_TEXT_ALIGN_CENTER, 0);
@@ -671,13 +673,13 @@ do_scan(void)
         ESP_LOGW(TAG, "Failed to start async scan: %s", esp_err_to_name(err));
 
         bsp_display_lock(0);
-        if (s_scan_btn_lbl) lv_label_set_text(s_scan_btn_lbl, LV_SYMBOL_REFRESH " Scan");
+        if (s_scan_btn_lbl) lv_label_set_text_fmt(s_scan_btn_lbl, LV_SYMBOL_REFRESH " %s", ui_str(STR_SCAN));
         if (s_scan_btn) lv_obj_clear_state(s_scan_btn, LV_STATE_DISABLED);
-        if (s_status_label) lv_label_set_text(s_status_label, "Scan failed");
+        if (s_status_label) lv_label_set_text(s_status_label, ui_str(STR_SCAN_FAILED));
         if (s_list) {
             lv_obj_clean(s_list);
             lv_obj_t *errlab = lv_label_create(s_list);
-            lv_label_set_text(errlab, "Scan failed.\nTap Scan to try again.");
+            lv_label_set_text(errlab, ui_str(STR_SCAN_FAILED_RETRY));
             lv_obj_set_style_text_color(errlab, UI_COLOR_DANGER, 0);
             lv_obj_set_style_text_font(errlab, UI_FONT_BODY_SMALL, 0);
             lv_obj_set_style_text_align(errlab, LV_TEXT_ALIGN_CENTER, 0);
@@ -719,17 +721,17 @@ on_scan_poll_timer(lv_timer_t *timer)
     esp_err_t err = TS_WiFi_ScanGetResults(s_ap_list, &s_ap_count);
 
     /* Restore button label */
-    if (s_scan_btn_lbl) lv_label_set_text(s_scan_btn_lbl, LV_SYMBOL_REFRESH " Scan");
+    if (s_scan_btn_lbl) lv_label_set_text_fmt(s_scan_btn_lbl, LV_SYMBOL_REFRESH " %s", ui_str(STR_SCAN));
     if (s_scan_btn) lv_obj_clear_state(s_scan_btn, LV_STATE_DISABLED);
 
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "Scan failed: %s", esp_err_to_name(err));
-        if (s_status_label) lv_label_set_text(s_status_label, "Scan failed");
+        if (s_status_label) lv_label_set_text(s_status_label, ui_str(STR_SCAN_FAILED));
 
         if (s_list) {
             lv_obj_clean(s_list);
             lv_obj_t *errlab = lv_label_create(s_list);
-            lv_label_set_text(errlab, "Scan failed.\nTap Scan to try again.");
+            lv_label_set_text(errlab, ui_str(STR_SCAN_FAILED_RETRY));
             lv_obj_set_style_text_color(errlab, UI_COLOR_DANGER, 0);
             lv_obj_set_style_text_font(errlab, UI_FONT_BODY_SMALL, 0);
             lv_obj_set_style_text_align(errlab, LV_TEXT_ALIGN_CENTER, 0);
@@ -769,7 +771,7 @@ populate_list(void)
 
     if (s_ap_count == 0) {
         lv_obj_t *empty = lv_label_create(s_list);
-        lv_label_set_text(empty, "No networks found.\nTry scanning again.");
+        lv_label_set_text(empty, ui_str(STR_NO_NETWORKS_FOUND));
         lv_obj_set_style_text_color(empty, UI_COLOR_TEXT_DISABLED, 0);
         lv_obj_set_style_text_font(empty, UI_FONT_BODY_SMALL, 0);
         lv_obj_set_style_text_align(empty, LV_TEXT_ALIGN_CENTER, 0);
@@ -818,7 +820,7 @@ view_show_password(const char *ssid, bool secured)
 
     /* Network name */
     lv_obj_t *net_lbl = lv_label_create(s_pw_container);
-    lv_label_set_text(net_lbl, "Connect to:");
+    lv_label_set_text(net_lbl, ui_str(STR_CONNECT_TO));
     lv_obj_set_style_text_color(net_lbl, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(net_lbl, UI_FONT_CAPTION, 0);
     lv_obj_align(net_lbl, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -833,13 +835,13 @@ view_show_password(const char *ssid, bool secured)
 
     /* Password label */
     lv_obj_t *pw_lbl = lv_label_create(s_pw_container);
-    lv_label_set_text(pw_lbl, "Password");
+    lv_label_set_text(pw_lbl, ui_str(STR_PASSWORD));
     lv_obj_set_style_text_color(pw_lbl, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(pw_lbl, UI_FONT_CAPTION, 0);
     lv_obj_align(pw_lbl, LV_ALIGN_TOP_LEFT, 0, 48);
 
     /* Password input */
-    s_pw_input = input_field_component_create(s_pw_container, 400, 42, "Enter password");
+    s_pw_input = input_field_component_create(s_pw_container, 400, 42, ui_str(STR_ENTER_PASSWORD));
     if (s_pw_input) {
         lv_obj_align(s_pw_input, LV_ALIGN_TOP_MID, 0, 66);
         input_field_component_set_password_mode(s_pw_input, true);
@@ -849,7 +851,7 @@ view_show_password(const char *ssid, bool secured)
 
     /* Show password checkbox */
     s_pw_show_cb = lv_checkbox_create(s_pw_container);
-    lv_checkbox_set_text(s_pw_show_cb, "Show password");
+    lv_checkbox_set_text(s_pw_show_cb, ui_str(STR_SHOW_PASSWORD));
     lv_obj_set_style_text_font(s_pw_show_cb, UI_FONT_SMALL, 0);
     lv_obj_set_style_text_color(s_pw_show_cb, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_align(s_pw_show_cb, LV_ALIGN_TOP_LEFT, 0, 116);
@@ -863,7 +865,7 @@ view_show_password(const char *ssid, bool secured)
     lv_obj_set_style_radius(s_pw_back, UI_BTN_RADIUS, 0);
     lv_obj_add_event_cb(s_pw_back, on_pw_back, LV_EVENT_CLICKED, NULL);
     lv_obj_t *back_lbl = lv_label_create(s_pw_back);
-    lv_label_set_text(back_lbl, LV_SYMBOL_LEFT " Back");
+    lv_label_set_text_fmt(back_lbl, LV_SYMBOL_LEFT " %s", ui_str(STR_BACK));
     lv_obj_set_style_text_color(back_lbl, UI_COLOR_TEXT_ON_PRIMARY, 0);
     lv_obj_set_style_text_font(back_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(back_lbl);
@@ -875,7 +877,7 @@ view_show_password(const char *ssid, bool secured)
     lv_obj_set_style_radius(s_pw_connect, UI_BTN_RADIUS, 0);
     lv_obj_add_event_cb(s_pw_connect, on_pw_connect, LV_EVENT_CLICKED, NULL);
     lv_obj_t *conn_lbl = lv_label_create(s_pw_connect);
-    lv_label_set_text(conn_lbl, "Connect " LV_SYMBOL_RIGHT);
+    lv_label_set_text_fmt(conn_lbl, "%s " LV_SYMBOL_RIGHT, ui_str(STR_CONNECT));
     lv_obj_set_style_text_color(conn_lbl, UI_COLOR_TEXT_ON_PRIMARY, 0);
     lv_obj_set_style_text_font(conn_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(conn_lbl);
@@ -921,7 +923,7 @@ view_show_manual(void)
 
     /* SSID label */
     lv_obj_t *ssid_lbl = lv_label_create(s_man_container);
-    lv_label_set_text(ssid_lbl, "Network Name (SSID)");
+    lv_label_set_text(ssid_lbl, ui_str(STR_NETWORK_NAME_SSID));
     lv_obj_set_style_text_color(ssid_lbl, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(ssid_lbl, UI_FONT_CAPTION, 0);
 
@@ -935,13 +937,13 @@ view_show_manual(void)
 
     /* Password label */
     lv_obj_t *pw_lbl = lv_label_create(s_man_container);
-    lv_label_set_text(pw_lbl, "Password");
+    lv_label_set_text(pw_lbl, ui_str(STR_PASSWORD));
     lv_obj_set_style_text_color(pw_lbl, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(pw_lbl, UI_FONT_CAPTION, 0);
     lv_obj_set_style_pad_top(pw_lbl, 4, 0);
 
     /* Password input */
-    s_man_pw_inp = input_field_component_create(s_man_container, 400, 38, "Password (or leave empty)");
+    s_man_pw_inp = input_field_component_create(s_man_container, 400, 38, ui_str(STR_PASSWORD_OR_EMPTY));
     if (s_man_pw_inp) {
         lv_obj_set_width(s_man_pw_inp, lv_pct(100));
         input_field_component_set_password_mode(s_man_pw_inp, true);
@@ -951,7 +953,7 @@ view_show_manual(void)
 
     /* Show password checkbox */
     s_man_show_cb = lv_checkbox_create(s_man_container);
-    lv_checkbox_set_text(s_man_show_cb, "Show password");
+    lv_checkbox_set_text(s_man_show_cb, ui_str(STR_SHOW_PASSWORD));
     lv_obj_set_style_text_font(s_man_show_cb, UI_FONT_SMALL, 0);
     lv_obj_set_style_text_color(s_man_show_cb, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_add_event_cb(s_man_show_cb, on_man_show_toggle, LV_EVENT_VALUE_CHANGED, NULL);
@@ -981,7 +983,7 @@ view_show_manual(void)
     lv_obj_set_style_radius(s_man_back, UI_BTN_RADIUS, 0);
     lv_obj_add_event_cb(s_man_back, on_man_back, LV_EVENT_CLICKED, NULL);
     lv_obj_t *back_lbl = lv_label_create(s_man_back);
-    lv_label_set_text(back_lbl, LV_SYMBOL_LEFT " Back");
+    lv_label_set_text_fmt(back_lbl, LV_SYMBOL_LEFT " %s", ui_str(STR_BACK));
     lv_obj_set_style_text_color(back_lbl, UI_COLOR_TEXT_ON_PRIMARY, 0);
     lv_obj_set_style_text_font(back_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(back_lbl);
@@ -993,7 +995,7 @@ view_show_manual(void)
     lv_obj_set_style_radius(s_man_connect, UI_BTN_RADIUS, 0);
     lv_obj_add_event_cb(s_man_connect, on_man_connect, LV_EVENT_CLICKED, NULL);
     lv_obj_t *conn_lbl = lv_label_create(s_man_connect);
-    lv_label_set_text(conn_lbl, "Connect " LV_SYMBOL_RIGHT);
+    lv_label_set_text_fmt(conn_lbl, "%s " LV_SYMBOL_RIGHT, ui_str(STR_CONNECT));
     lv_obj_set_style_text_color(conn_lbl, UI_COLOR_TEXT_ON_PRIMARY, 0);
     lv_obj_set_style_text_font(conn_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(conn_lbl);
@@ -1055,7 +1057,7 @@ view_show_connecting(const char *ssid)
     /* "Connecting to <SSID>..." label */
     s_conn_label = lv_label_create(s_conn_container);
     char conn_text[80];
-    snprintf(conn_text, sizeof(conn_text), "Connecting to\n%.32s", ssid);
+    snprintf(conn_text, sizeof(conn_text), ui_str(STR_CONNECTING_TO), ssid);
     lv_label_set_text(s_conn_label, conn_text);
     lv_obj_set_style_text_color(s_conn_label, UI_COLOR_TEXT_PRIMARY, 0);
     lv_obj_set_style_text_font(s_conn_label, UI_FONT_BODY, 0);
@@ -1065,7 +1067,7 @@ view_show_connecting(const char *ssid)
 
     /* Status sub-label */
     s_conn_status = lv_label_create(s_conn_container);
-    lv_label_set_text(s_conn_status, "Please wait...");
+    lv_label_set_text(s_conn_status, ui_str(STR_PLEASE_WAIT));
     lv_obj_set_style_text_color(s_conn_status, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_style_text_font(s_conn_status, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_align(s_conn_status, LV_TEXT_ALIGN_CENTER, 0);
@@ -1080,7 +1082,7 @@ view_show_connecting(const char *ssid)
     lv_obj_set_style_radius(s_conn_back, UI_BTN_RADIUS, 0);
     lv_obj_add_event_cb(s_conn_back, on_conn_back, LV_EVENT_CLICKED, NULL);
     lv_obj_t *bck_lbl = lv_label_create(s_conn_back);
-    lv_label_set_text(bck_lbl, LV_SYMBOL_LEFT " Cancel");
+    lv_label_set_text_fmt(bck_lbl, LV_SYMBOL_LEFT " %s", ui_str(STR_CANCEL));
     lv_obj_set_style_text_color(bck_lbl, UI_COLOR_TEXT_ON_PRIMARY, 0);
     lv_obj_set_style_text_font(bck_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(bck_lbl);
@@ -1126,7 +1128,9 @@ touchscreen_wifi_setup_screen_create(TouchScreen_WiFi_Setup_Callback_t callback,
     lv_obj_clean(s_screen);
     lv_obj_set_style_bg_color(s_screen, UI_COLOR_BACKGROUND, 0);
 
-    create_header(s_screen, LV_SYMBOL_WIFI " WiFi Setup");
+    char header_buf[64];
+    snprintf(header_buf, sizeof(header_buf), LV_SYMBOL_WIFI " %s", ui_str(STR_WIFI_SETUP));
+    create_header(s_screen, header_buf);
     create_body(s_screen);
 
     /* Register body click handler — dismiss keyboard on tap outside */

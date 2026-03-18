@@ -41,16 +41,23 @@ extern "C" {
 #define UI_COLOR_BORDER             lv_color_hex(0xBDBDBD)  /* Grey 400 */
 
 /* =========================================================================
- * Typography (Montserrat sizes available: 12, 14, 16, 18, 20, 22, 24, 26, 28)
+ * Typography — Custom Montserrat with Latin + Cyrillic (BG/EN support)
  * ========================================================================= */
+extern lv_font_t font_montserrat_cyrillic_28;
+extern lv_font_t font_montserrat_cyrillic_24;
+extern lv_font_t font_montserrat_cyrillic_20;
+extern lv_font_t font_montserrat_cyrillic_18;
+extern lv_font_t font_montserrat_cyrillic_16;
+extern lv_font_t font_montserrat_cyrillic_14;
+extern lv_font_t font_montserrat_cyrillic_12;
 
-#define UI_FONT_H1                  (&lv_font_montserrat_28)
-#define UI_FONT_H2                  (&lv_font_montserrat_24)
-#define UI_FONT_H3                  (&lv_font_montserrat_20)
-#define UI_FONT_BODY                (&lv_font_montserrat_18)
-#define UI_FONT_BODY_SMALL          (&lv_font_montserrat_16)
-#define UI_FONT_CAPTION             (&lv_font_montserrat_14)
-#define UI_FONT_SMALL               (&lv_font_montserrat_12)
+#define UI_FONT_H1                  (&font_montserrat_cyrillic_28)
+#define UI_FONT_H2                  (&font_montserrat_cyrillic_24)
+#define UI_FONT_H3                  (&font_montserrat_cyrillic_20)
+#define UI_FONT_BODY                (&font_montserrat_cyrillic_18)
+#define UI_FONT_BODY_SMALL          (&font_montserrat_cyrillic_16)
+#define UI_FONT_CAPTION             (&font_montserrat_cyrillic_14)
+#define UI_FONT_SMALL               (&font_montserrat_cyrillic_12)
 
 /* =========================================================================
  * Layout Constants

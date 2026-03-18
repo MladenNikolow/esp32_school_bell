@@ -1,5 +1,6 @@
 #include "ui_navbar.h"
 #include "ui_theme.h"
+#include "ui_strings.h"
 #include "ui_config.h"
 #include "esp_log.h"
 
@@ -94,19 +95,19 @@ lv_obj_t *ui_navbar_create(lv_obj_t *parent, ui_navbar_tab_cb_t cb)
     lv_obj_set_flex_align(s_navbar, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     /* Dashboard tab */
-    s_dashboard_btn = create_nav_item(s_navbar, LV_SYMBOL_HOME, "Dashboard",
+    s_dashboard_btn = create_nav_item(s_navbar, LV_SYMBOL_HOME, ui_str(STR_NAV_DASHBOARD),
                                        UI_NAV_TAB_DASHBOARD, &s_dashboard_icon, &s_dashboard_label);
 
     /* Schedule tab */
-    s_schedule_btn = create_nav_item(s_navbar, LV_SYMBOL_LIST, "Schedule",
+    s_schedule_btn = create_nav_item(s_navbar, LV_SYMBOL_LIST, ui_str(STR_NAV_SCHEDULE),
                                       UI_NAV_TAB_SCHEDULE, &s_schedule_icon, &s_schedule_label);
 
     /* Settings tab */
-    s_settings_btn = create_nav_item(s_navbar, LV_SYMBOL_SETTINGS, "Settings",
+    s_settings_btn = create_nav_item(s_navbar, LV_SYMBOL_SETTINGS, ui_str(STR_NAV_SETTINGS),
                                       UI_NAV_TAB_SETTINGS, &s_settings_icon, &s_settings_label);
 
     /* Info tab */
-    s_info_btn = create_nav_item(s_navbar, LV_SYMBOL_EYE_OPEN, "Info",
+    s_info_btn = create_nav_item(s_navbar, LV_SYMBOL_EYE_OPEN, ui_str(STR_NAV_INFO),
                                   UI_NAV_TAB_INFO, &s_info_icon, &s_info_label);
 
     /* Active indicator line (3px bar under active tab) — floating to avoid

@@ -4,6 +4,7 @@
 #include "schedule_view_screen_internal.h"
 #include "../../src/ui_manager_internal.h"
 #include "../../src/ui_theme.h"
+#include "../../src/ui_strings.h"
 #include "../../components/card/card_component.h"
 #include "TouchScreen_Services.h"
 #include "TouchScreen_UI_Manager.h"
@@ -15,6 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 
 static const char *TAG = "SCHEDULE_VIEW";
 
@@ -167,6 +169,48 @@ static void schedule_load_shift(uint8_t shift)
 }
 
 /* ------------------------------------------------------------------ */
+/* Translate bell label for current language                           */
+/* Labels come from JSON in English (e.g. "Class 1 start").           */
+/* When language is BG, translate known patterns.                      */
+/* ------------------------------------------------------------------ */
+static void translate_bell_label(const char *src, char *dst, size_t dst_sz)
+{
+    if (ui_get_language() == UI_LANG_EN || !src || !dst || dst_sz == 0) {
+        snprintf(dst, dst_sz, "%s", src ? src : "");
+        return;
+    }
+
+    /* Try "Class <N> start" / "Class <N> end" */
+    int num = 0;
+    char tail[16] = {0};
+    if (sscanf(src, "Class %d %15s", &num, tail) == 2) {
+        if (strcmp(tail, "start") == 0) {
+            snprintf(dst, dst_sz, "%s %d %s", ui_str(STR_CLASS), num, ui_str(STR_START));
+        } else if (strcmp(tail, "end") == 0) {
+            snprintf(dst, dst_sz, "%s %d %s", ui_str(STR_CLASS), num, ui_str(STR_END));
+        } else {
+            snprintf(dst, dst_sz, "%s %d %s", ui_str(STR_CLASS), num, tail);
+        }
+        return;
+    }
+
+    /* Try "Break" or "Break <N>" */
+    if (strncmp(src, "Break", 5) == 0) {
+        if (src[5] == '\0') {
+            snprintf(dst, dst_sz, "%s", ui_str(STR_BREAK));
+        } else if (src[5] == ' ') {
+            snprintf(dst, dst_sz, "%s%s", ui_str(STR_BREAK), src + 5);
+        } else {
+            snprintf(dst, dst_sz, "%s", src);
+        }
+        return;
+    }
+
+    /* No pattern matched — pass through as-is */
+    snprintf(dst, dst_sz, "%s", src);
+}
+
+/* ------------------------------------------------------------------ */
 /* Build the scrollable bell list                                      */
 /* ------------------------------------------------------------------ */
 static void schedule_build_list(void)
@@ -181,7 +225,7 @@ static void schedule_build_list(void)
     /* Empty state */
     if (!s_shift_enabled || s_bell_count == 0) {
         s_empty_label = lv_label_create(s_list_cont);
-        const char *msg = !s_shift_enabled ? "Shift disabled" : "No bells today";
+        const char *msg = !s_shift_enabled ? ui_str(STR_SHIFT_DISABLED) : ui_str(STR_NO_BELLS_TODAY);
         lv_label_set_text(s_empty_label, msg);
         lv_obj_set_style_text_font(s_empty_label, UI_FONT_BODY, 0);
         lv_obj_set_style_text_color(s_empty_label, UI_COLOR_TEXT_SECONDARY, 0);
@@ -257,7 +301,9 @@ static void schedule_build_list(void)
 
         /* Label (bell name) — takes remaining space */
         lv_obj_t *name_lbl = lv_label_create(row);
-        lv_label_set_text(name_lbl, s_bells[i].acLabel);
+        char label_buf[64];
+        translate_bell_label(s_bells[i].acLabel, label_buf, sizeof(label_buf));
+        lv_label_set_text(name_lbl, label_buf);
         lv_obj_set_flex_grow(name_lbl, 1);
         lv_label_set_long_mode(name_lbl, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_font(name_lbl, UI_FONT_BODY_SMALL, 0);
@@ -273,7 +319,7 @@ static void schedule_build_list(void)
         /* Duration */
         lv_obj_t *dur_lbl = lv_label_create(row);
         char dur_buf[12];
-        snprintf(dur_buf, sizeof(dur_buf), "%us", s_bells[i].usDurationSec);
+        snprintf(dur_buf, sizeof(dur_buf), "%u%s", s_bells[i].usDurationSec, ui_str(STR_SEC_SUFFIX));
         lv_label_set_text(dur_lbl, dur_buf);
         lv_obj_set_style_text_font(dur_lbl, UI_FONT_SMALL, 0);
         lv_obj_set_style_text_color(dur_lbl, UI_COLOR_TEXT_SECONDARY, 0);
@@ -393,7 +439,7 @@ void touchscreen_schedule_view_screen_create(void)
     lv_obj_set_style_border_width(s_tab_1st, 2, 0);
     lv_obj_set_style_shadow_width(s_tab_1st, 0, 0);
     lv_obj_t *t1_lbl = lv_label_create(s_tab_1st);
-    lv_label_set_text(t1_lbl, "1st Shift");
+    lv_label_set_text(t1_lbl, ui_str(STR_1ST_SHIFT));
     lv_obj_set_style_text_font(t1_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(t1_lbl);
     lv_obj_add_event_cb(s_tab_1st, tab_1st_event_cb, LV_EVENT_CLICKED, NULL);
@@ -406,7 +452,7 @@ void touchscreen_schedule_view_screen_create(void)
     lv_obj_set_style_border_width(s_tab_2nd, 2, 0);
     lv_obj_set_style_shadow_width(s_tab_2nd, 0, 0);
     lv_obj_t *t2_lbl = lv_label_create(s_tab_2nd);
-    lv_label_set_text(t2_lbl, "2nd Shift");
+    lv_label_set_text(t2_lbl, ui_str(STR_2ND_SHIFT));
     lv_obj_set_style_text_font(t2_lbl, UI_FONT_BODY_SMALL, 0);
     lv_obj_center(t2_lbl);
     lv_obj_add_event_cb(s_tab_2nd, tab_2nd_event_cb, LV_EVENT_CLICKED, NULL);

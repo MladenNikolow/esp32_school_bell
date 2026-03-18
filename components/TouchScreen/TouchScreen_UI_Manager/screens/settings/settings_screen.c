@@ -4,6 +4,7 @@
 #include "settings_screen_internal.h"
 #include "../../src/ui_manager_internal.h"
 #include "../../src/ui_theme.h"
+#include "../../src/ui_strings.h"
 #include "../../components/card/card_component.h"
 #include "TouchScreen_Services.h"
 #include "TouchScreen_UI_Manager.h"
@@ -37,6 +38,10 @@ static lv_obj_t *s_timezone_lbl  = NULL;
 
 /* System card */
 static lv_obj_t *s_ntp_status_lbl = NULL;
+
+/* Language toggle */
+static lv_obj_t *s_lang_btn_bg    = NULL;
+static lv_obj_t *s_lang_btn_en    = NULL;
 
 /* ------------------------------------------------------------------ */
 /* Helper: create a "label + value" info row inside a card             */
@@ -108,45 +113,150 @@ static void create_divider(lv_obj_t *parent)
 static void settings_create_network_card(lv_obj_t *parent)
 {
     lv_obj_t *card = card_component_create_with_title(
-                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, "Network");
+                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, ui_str(STR_NETWORK));
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(card, 6, 0);
 
-    create_info_row(card, LV_SYMBOL_WIFI,    "WiFi Network", &s_wifi_ssid_lbl);
+    create_info_row(card, LV_SYMBOL_WIFI,    ui_str(STR_WIFI_NETWORK), &s_wifi_ssid_lbl);
     create_divider(card);
-    create_info_row(card, LV_SYMBOL_GPS,     "IP Address",   &s_ip_addr_lbl);
+    create_info_row(card, LV_SYMBOL_GPS,     ui_str(STR_IP_ADDRESS),   &s_ip_addr_lbl);
 }
 
 static void settings_create_schedule_card(lv_obj_t *parent)
 {
     lv_obj_t *card = card_component_create_with_title(
-                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, "Schedule");
+                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, ui_str(STR_SCHEDULE));
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(card, 6, 0);
 
-    create_info_row(card, LV_SYMBOL_LIST,     "Working Days", &s_workdays_lbl);
+    create_info_row(card, LV_SYMBOL_LIST,     ui_str(STR_WORKING_DAYS), &s_workdays_lbl);
     create_divider(card);
-    create_info_row(card, LV_SYMBOL_SETTINGS, "Timezone",     &s_timezone_lbl);
+    create_info_row(card, LV_SYMBOL_SETTINGS, ui_str(STR_TIMEZONE),     &s_timezone_lbl);
+}
+
+static void lang_bg_event_cb(lv_event_t *e);
+static void lang_en_event_cb(lv_event_t *e);
+
+/** @brief Apply active/inactive styles to the two language buttons. */
+static void update_lang_btn_styles(void)
+{
+    ui_language_t cur = ui_get_language();
+    if (s_lang_btn_bg) {
+        if (cur == UI_LANG_BG) {
+            lv_obj_set_style_bg_color(s_lang_btn_bg, UI_COLOR_PRIMARY, 0);
+            lv_obj_set_style_bg_opa(s_lang_btn_bg, LV_OPA_COVER, 0);
+            lv_obj_set_style_text_color(s_lang_btn_bg, UI_COLOR_TEXT_ON_PRIMARY, 0);
+        } else {
+            lv_obj_set_style_bg_color(s_lang_btn_bg, UI_COLOR_SURFACE, 0);
+            lv_obj_set_style_bg_opa(s_lang_btn_bg, LV_OPA_COVER, 0);
+            lv_obj_set_style_text_color(s_lang_btn_bg, UI_COLOR_PRIMARY, 0);
+        }
+    }
+    if (s_lang_btn_en) {
+        if (cur == UI_LANG_EN) {
+            lv_obj_set_style_bg_color(s_lang_btn_en, UI_COLOR_PRIMARY, 0);
+            lv_obj_set_style_bg_opa(s_lang_btn_en, LV_OPA_COVER, 0);
+            lv_obj_set_style_text_color(s_lang_btn_en, UI_COLOR_TEXT_ON_PRIMARY, 0);
+        } else {
+            lv_obj_set_style_bg_color(s_lang_btn_en, UI_COLOR_SURFACE, 0);
+            lv_obj_set_style_bg_opa(s_lang_btn_en, LV_OPA_COVER, 0);
+            lv_obj_set_style_text_color(s_lang_btn_en, UI_COLOR_PRIMARY, 0);
+        }
+    }
 }
 
 static void settings_create_system_card(lv_obj_t *parent)
 {
     lv_obj_t *card = card_component_create_with_title(
-                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, "System");
+                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, ui_str(STR_SYSTEM));
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(card, 6, 0);
 
-    create_info_row(card, LV_SYMBOL_REFRESH, "NTP Sync", &s_ntp_status_lbl);
+    create_info_row(card, LV_SYMBOL_REFRESH, ui_str(STR_NTP_SYNC), &s_ntp_status_lbl);
+    create_divider(card);
+
+    /* Language toggle row */
+    lv_obj_t *lang_row = lv_obj_create(card);
+    lv_obj_set_size(lang_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(lang_row, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(lang_row, 0, 0);
+    lv_obj_set_style_pad_all(lang_row, 0, 0);
+    lv_obj_set_flex_flow(lang_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(lang_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollbar_mode(lang_row, LV_SCROLLBAR_MODE_OFF);
+
+    /* Icon + label column */
+    lv_obj_t *lang_left = lv_obj_create(lang_row);
+    lv_obj_set_size(lang_left, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(lang_left, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(lang_left, 0, 0);
+    lv_obj_set_style_pad_all(lang_left, 0, 0);
+    lv_obj_set_flex_flow(lang_left, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(lang_left, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(lang_left, UI_PAD_SMALL, 0);
+    lv_obj_set_scrollbar_mode(lang_left, LV_SCROLLBAR_MODE_OFF);
+
+    lv_obj_t *lang_icon = lv_label_create(lang_left);
+    lv_label_set_text(lang_icon, LV_SYMBOL_EDIT);
+    lv_obj_set_style_text_font(lang_icon, UI_FONT_H3, 0);
+    lv_obj_set_style_text_color(lang_icon, UI_COLOR_PRIMARY, 0);
+
+    lv_obj_t *lang_title = lv_label_create(lang_left);
+    lv_label_set_text(lang_title, ui_str(STR_LANGUAGE));
+    lv_obj_set_style_text_font(lang_title, UI_FONT_CAPTION, 0);
+    lv_obj_set_style_text_color(lang_title, UI_COLOR_TEXT_SECONDARY, 0);
+
+    /* Two-button toggle container: [BG] [EN] */
+    lv_obj_t *toggle_cont = lv_obj_create(lang_row);
+    lv_obj_set_size(toggle_cont, LV_SIZE_CONTENT, 34);
+    lv_obj_set_style_bg_opa(toggle_cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(toggle_cont, 0, 0);
+    lv_obj_set_style_pad_all(toggle_cont, 0, 0);
+    lv_obj_set_flex_flow(toggle_cont, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(toggle_cont, 0, 0);
+    lv_obj_set_scrollbar_mode(toggle_cont, LV_SCROLLBAR_MODE_OFF);
+
+    /* BG button */
+    s_lang_btn_bg = lv_button_create(toggle_cont);
+    lv_obj_set_size(s_lang_btn_bg, 50, 34);
+    lv_obj_set_style_radius(s_lang_btn_bg, UI_BTN_RADIUS, 0);
+    lv_obj_set_style_border_color(s_lang_btn_bg, UI_COLOR_PRIMARY, 0);
+    lv_obj_set_style_border_width(s_lang_btn_bg, 2, 0);
+    lv_obj_set_style_shadow_width(s_lang_btn_bg, 0, 0);
+    lv_obj_add_event_cb(s_lang_btn_bg, lang_bg_event_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *bg_lbl = lv_label_create(s_lang_btn_bg);
+    lv_label_set_text(bg_lbl, "BG");
+    lv_obj_set_style_text_font(bg_lbl, UI_FONT_BODY_SMALL, 0);
+    lv_obj_center(bg_lbl);
+
+    /* EN button */
+    s_lang_btn_en = lv_button_create(toggle_cont);
+    lv_obj_set_size(s_lang_btn_en, 50, 34);
+    lv_obj_set_style_radius(s_lang_btn_en, UI_BTN_RADIUS, 0);
+    lv_obj_set_style_border_color(s_lang_btn_en, UI_COLOR_PRIMARY, 0);
+    lv_obj_set_style_border_width(s_lang_btn_en, 2, 0);
+    lv_obj_set_style_shadow_width(s_lang_btn_en, 0, 0);
+    lv_obj_add_event_cb(s_lang_btn_en, lang_en_event_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *en_lbl = lv_label_create(s_lang_btn_en);
+    lv_label_set_text(en_lbl, "EN");
+    lv_obj_set_style_text_font(en_lbl, UI_FONT_BODY_SMALL, 0);
+    lv_obj_center(en_lbl);
+
+    /* Apply initial styles */
+    update_lang_btn_styles();
 }
 
 /* ------------------------------------------------------------------ */
 /* Data refresh                                                        */
 /* ------------------------------------------------------------------ */
-static const char * const s_day_names[] = {
-    "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+static const ui_string_id_t s_day_name_ids[] = {
+    STR_DAY_SUN, STR_DAY_MON, STR_DAY_TUE, STR_DAY_WED,
+    STR_DAY_THU, STR_DAY_FRI, STR_DAY_SAT
 };
 
 static void settings_refresh_all(void)
@@ -160,7 +270,7 @@ static void settings_refresh_all(void)
             TS_WiFi_GetConnectedSsid(ssid, sizeof(ssid)) == ESP_OK && ssid[0]) {
             lv_label_set_text(s_wifi_ssid_lbl, ssid);
         } else {
-            lv_label_set_text(s_wifi_ssid_lbl, "Not connected");
+            lv_label_set_text(s_wifi_ssid_lbl, ui_str(STR_NOT_CONNECTED));
         }
     }
     if (s_ip_addr_lbl) {
@@ -186,12 +296,12 @@ static void settings_refresh_all(void)
                         buf[pos++] = ' ';
                     }
                     size_t left = sizeof(buf) - pos;
-                    int n = snprintf(buf + pos, left, "%s", s_day_names[d]);
+                    int n = snprintf(buf + pos, left, "%s", ui_str(s_day_name_ids[d]));
                     if (n > 0) pos += (size_t)n;
                 }
             }
             if (pos == 0) {
-                lv_label_set_text(s_workdays_lbl, "None");
+                lv_label_set_text(s_workdays_lbl, ui_str(STR_NONE));
             } else {
                 lv_label_set_text(s_workdays_lbl, buf);
             }
@@ -212,27 +322,48 @@ static void settings_refresh_all(void)
         if (TS_Schedule_GetStatus(&tStatus) == ESP_OK) {
             if (tStatus.bTimeSynced) {
                 if (tStatus.ulLastSyncAgeSec < 60) {
-                    lv_label_set_text(s_ntp_status_lbl, "Synced (just now)");
+                    lv_label_set_text(s_ntp_status_lbl, ui_str(STR_SYNCED_JUST_NOW));
                 } else if (tStatus.ulLastSyncAgeSec < 3600) {
-                    char buf[40];
-                    snprintf(buf, sizeof(buf), "Synced (%lum ago)",
-                             (unsigned long)(tStatus.ulLastSyncAgeSec / 60));
+                    char buf[48];
+                    snprintf(buf, sizeof(buf), "%s (%lum)",
+                             ui_str(STR_NTP_SYNC), (unsigned long)(tStatus.ulLastSyncAgeSec / 60));
                     lv_label_set_text(s_ntp_status_lbl, buf);
                 } else {
-                    char buf[40];
-                    snprintf(buf, sizeof(buf), "Synced (%luh ago)",
-                             (unsigned long)(tStatus.ulLastSyncAgeSec / 3600));
+                    char buf[48];
+                    snprintf(buf, sizeof(buf), "%s (%luh)",
+                             ui_str(STR_NTP_SYNC), (unsigned long)(tStatus.ulLastSyncAgeSec / 3600));
                     lv_label_set_text(s_ntp_status_lbl, buf);
                 }
             } else {
-                lv_label_set_text(s_ntp_status_lbl, "Not synced");
+                lv_label_set_text(s_ntp_status_lbl, ui_str(STR_NOT_SYNCED));
             }
         } else {
-            lv_label_set_text(s_ntp_status_lbl, "Unknown");
+            lv_label_set_text(s_ntp_status_lbl, ui_str(STR_UNKNOWN));
         }
     }
 
     bsp_display_unlock();
+}
+
+/* ------------------------------------------------------------------ */
+/* Language button handlers                                            */
+/* ------------------------------------------------------------------ */
+static void lang_bg_event_cb(lv_event_t *e)
+{
+    (void)e;
+    if (ui_get_language() == UI_LANG_BG) return;  /* Already BG */
+    ui_set_language(UI_LANG_BG);
+    ESP_LOGI(TAG, "Language changed to BG, rebuilding screen");
+    TouchScreen_UI_NavigateTo(TOUCHSCREEN_UI_SCREEN_SETTINGS);
+}
+
+static void lang_en_event_cb(lv_event_t *e)
+{
+    (void)e;
+    if (ui_get_language() == UI_LANG_EN) return;  /* Already EN */
+    ui_set_language(UI_LANG_EN);
+    ESP_LOGI(TAG, "Language changed to EN, rebuilding screen");
+    TouchScreen_UI_NavigateTo(TOUCHSCREEN_UI_SCREEN_SETTINGS);
 }
 
 /* ------------------------------------------------------------------ */
@@ -282,6 +413,8 @@ void touchscreen_settings_screen_destroy(void)
     s_workdays_lbl   = NULL;
     s_timezone_lbl   = NULL;
     s_ntp_status_lbl = NULL;
+    s_lang_btn_bg    = NULL;
+    s_lang_btn_en    = NULL;
 }
 
 void touchscreen_settings_screen_update(void)

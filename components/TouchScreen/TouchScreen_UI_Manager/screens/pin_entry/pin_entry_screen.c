@@ -4,6 +4,7 @@
 #include "pin_entry_screen_internal.h"
 #include "../../src/ui_manager_internal.h"
 #include "../../src/ui_theme.h"
+#include "../../src/ui_strings.h"
 #include "TouchScreen_Services.h"
 #include "TouchScreen_UI_Manager.h"
 #include "esp_log.h"
@@ -186,7 +187,7 @@ static void pin_try_validate(void)
             pin_shake_animation();
             if (s_status_label) {
                 lv_obj_set_style_text_color(s_status_label, UI_COLOR_DANGER, 0);
-                lv_label_set_text(s_status_label, "Wrong PIN");
+                lv_label_set_text(s_status_label, ui_str(STR_WRONG_PIN));
             }
             pin_clear_entry();
         }
@@ -259,7 +260,7 @@ static void pin_lockout_timer_cb(lv_timer_t *timer)
     uint32_t remaining = TS_Pin_GetLockoutRemaining();
     if (s_status_label) {
         char buf[40];
-        snprintf(buf, sizeof(buf), "Locked for %lus", (unsigned long)remaining);
+        snprintf(buf, sizeof(buf), ui_str(STR_LOCKED_FOR), (unsigned long)remaining);
         lv_label_set_text(s_status_label, buf);
     }
 }
@@ -303,13 +304,13 @@ void touchscreen_pin_entry_screen_create(TouchScreen_PIN_Result_Callback_t callb
 
     /* Title */
     lv_obj_t *title = lv_label_create(s_panel);
-    lv_label_set_text(title, "Enter PIN");
+    lv_label_set_text(title, ui_str(STR_ENTER_PIN));
     lv_obj_set_style_text_font(title, UI_FONT_H2, 0);
     lv_obj_set_style_text_color(title, UI_COLOR_TEXT_PRIMARY, 0);
 
     /* Subtitle */
     lv_obj_t *subtitle = lv_label_create(s_panel);
-    lv_label_set_text(subtitle, "Enter 4-digit PIN to continue");
+    lv_label_set_text(subtitle, ui_str(STR_ENTER_PIN_SUBTITLE));
     lv_obj_set_style_text_font(subtitle, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_color(subtitle, UI_COLOR_TEXT_SECONDARY, 0);
 
@@ -402,7 +403,7 @@ void touchscreen_pin_entry_screen_create(TouchScreen_PIN_Result_Callback_t callb
     ui_theme_apply_btn_secondary(cancel_btn);
 
     lv_obj_t *cancel_label = lv_label_create(cancel_btn);
-    lv_label_set_text(cancel_label, "Cancel");
+    lv_label_set_text(cancel_label, ui_str(STR_CANCEL));
     lv_obj_center(cancel_label);
 
     lv_obj_add_event_cb(cancel_btn, cancel_event_cb, LV_EVENT_CLICKED, NULL);

@@ -2,6 +2,7 @@
 #include "ui_theme.h"
 #include "ui_statusbar.h"
 #include "ui_navbar.h"
+#include "ui_strings.h"
 #include "ui_config.h"
 #include "../screens/splash/splash_screen_internal.h"
 #include "../screens/wifi_setup/wifi_setup_screen_internal.h"
@@ -242,6 +243,9 @@ static void ui_manager_show_chrome(lv_obj_t *scr)
 bool TouchScreen_UI_ManagerInit(void)
 {
     ESP_LOGI(TAG, "Initializing UI Manager (LVGL 9, Material theme)");
+
+    /* Load saved language preference from NVS before any UI is created */
+    ui_strings_init();
 
     bsp_display_lock(0);
     ui_theme_init();

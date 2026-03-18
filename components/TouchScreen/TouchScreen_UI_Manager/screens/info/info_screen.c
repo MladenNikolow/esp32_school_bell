@@ -4,6 +4,7 @@
 #include "info_screen_internal.h"
 #include "../../src/ui_manager_internal.h"
 #include "../../src/ui_theme.h"
+#include "../../src/ui_strings.h"
 #include "../../components/card/card_component.h"
 #include "TouchScreen_Services.h"
 #include "TouchScreen_UI_Manager.h"
@@ -108,24 +109,24 @@ static void create_divider(lv_obj_t *parent)
 static void info_create_device_card(lv_obj_t *parent)
 {
     lv_obj_t *card = card_component_create_with_title(
-                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, "Device");
+                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, ui_str(STR_DEVICE));
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(card, 6, 0);
 
-    create_info_row(card, LV_SYMBOL_HOME,     "Firmware Version", &s_fw_version_lbl);
+    create_info_row(card, LV_SYMBOL_HOME,     ui_str(STR_FIRMWARE_VERSION), &s_fw_version_lbl);
     create_divider(card);
-    create_info_row(card, LV_SYMBOL_SETTINGS, "ESP-IDF Version",  &s_idf_version_lbl);
+    create_info_row(card, LV_SYMBOL_SETTINGS, ui_str(STR_IDF_VERSION),  &s_idf_version_lbl);
     create_divider(card);
-    create_info_row(card, LV_SYMBOL_CHARGE,   "Chip",             &s_chip_info_lbl);
+    create_info_row(card, LV_SYMBOL_CHARGE,   ui_str(STR_CHIP),             &s_chip_info_lbl);
     create_divider(card);
-    create_info_row(card, LV_SYMBOL_GPS,      "MAC Address",      &s_mac_addr_lbl);
+    create_info_row(card, LV_SYMBOL_GPS,      ui_str(STR_MAC_ADDRESS),      &s_mac_addr_lbl);
 }
 
 static void info_create_web_access_card(lv_obj_t *parent)
 {
     lv_obj_t *card = card_component_create_with_title(
-                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, "Web Interface");
+                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, ui_str(STR_WEB_INTERFACE));
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(card, 8, 0);
@@ -134,7 +135,7 @@ static void info_create_web_access_card(lv_obj_t *parent)
 
     /* Instruction label */
     lv_obj_t *hint = lv_label_create(card);
-    lv_label_set_text(hint, "Scan QR code to open the web interface");
+    lv_label_set_text(hint, ui_str(STR_SCAN_QR));
     lv_obj_set_style_text_font(hint, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_color(hint, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_width(hint, LV_PCT(100));
@@ -152,7 +153,7 @@ static void info_create_web_access_card(lv_obj_t *parent)
 
     /* URL label below QR */
     s_web_url_lbl = lv_label_create(card);
-    lv_label_set_text(s_web_url_lbl, "Not connected");
+    lv_label_set_text(s_web_url_lbl, ui_str(STR_NOT_CONNECTED));
     lv_obj_set_style_text_font(s_web_url_lbl, UI_FONT_BODY, 0);
     lv_obj_set_style_text_color(s_web_url_lbl, UI_COLOR_PRIMARY, 0);
     lv_obj_set_width(s_web_url_lbl, LV_PCT(100));
@@ -162,7 +163,7 @@ static void info_create_web_access_card(lv_obj_t *parent)
 static void info_create_about_card(lv_obj_t *parent)
 {
     lv_obj_t *card = card_component_create_with_title(
-                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, "About");
+                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, ui_str(STR_ABOUT));
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(card, 4, 0);
@@ -173,9 +174,7 @@ static void info_create_about_card(lv_obj_t *parent)
     lv_obj_set_style_text_color(name_lbl, UI_COLOR_TEXT_PRIMARY, 0);
 
     lv_obj_t *desc_lbl = lv_label_create(card);
-    lv_label_set_text(desc_lbl,
-        "Automated school bell system with\n"
-        "touchscreen control and web management.");
+    lv_label_set_text(desc_lbl, ui_str(STR_ABOUT_DESC));
     lv_obj_set_style_text_font(desc_lbl, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_color(desc_lbl, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_width(desc_lbl, LV_PCT(100));
@@ -183,7 +182,7 @@ static void info_create_about_card(lv_obj_t *parent)
     create_divider(card);
 
     lv_obj_t *hw_lbl = lv_label_create(card);
-    lv_label_set_text(hw_lbl, "Board: Waveshare ESP32-S3-Touch-LCD-4");
+    lv_label_set_text(hw_lbl, ui_str(STR_BOARD_INFO));
     lv_obj_set_style_text_font(hw_lbl, UI_FONT_CAPTION, 0);
     lv_obj_set_style_text_color(hw_lbl, UI_COLOR_TEXT_SECONDARY, 0);
     lv_obj_set_width(hw_lbl, LV_PCT(100));
@@ -230,7 +229,7 @@ static void info_refresh_all(void)
                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
             lv_label_set_text(s_mac_addr_lbl, buf);
         } else {
-            lv_label_set_text(s_mac_addr_lbl, "Unknown");
+            lv_label_set_text(s_mac_addr_lbl, ui_str(STR_UNKNOWN));
         }
     }
 
@@ -244,7 +243,7 @@ static void info_refresh_all(void)
             snprintf(url, sizeof(url), "http://%s", ip);
             lv_label_set_text(s_web_url_lbl, url);
         } else {
-            lv_label_set_text(s_web_url_lbl, "WiFi not connected");
+            lv_label_set_text(s_web_url_lbl, ui_str(STR_WIFI_NOT_CONNECTED));
         }
     }
 
