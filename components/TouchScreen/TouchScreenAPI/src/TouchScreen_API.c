@@ -339,6 +339,13 @@ static void touchScreen_WiFiCallbackWrapper(TouchScreen_WiFi_Setup_Result_t resu
     if (gs_ptTouchScreenRsc && gs_ptTouchScreenRsc->pfWiFiCallback) {
         gs_ptTouchScreenRsc->pfWiFiCallback((int)result, ssid, password);
     }
+
+    /* On cancel, navigate to dashboard directly (we're already in the LVGL
+     * task context).  On success the AppTask callback reboots the device,
+     * so this line is only reached for the cancel path. */
+    if (result == TOUCHSCREEN_WIFI_SETUP_RESULT_CANCEL) {
+        TouchScreen_UI_NavigateTo(TOUCHSCREEN_UI_SCREEN_DASHBOARD);
+    }
 }
 
 /**
