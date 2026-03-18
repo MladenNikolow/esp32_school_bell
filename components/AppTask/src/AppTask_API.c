@@ -10,6 +10,7 @@
 #include "Scheduler_API.h"
 #include "RingBell_API.h"
 #include "TouchScreen_API.h"
+#include "TouchScreen_Services.h"
 #include "esp_log.h"
 #include "esp_system.h"
 
@@ -148,14 +149,14 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
     /* ========== PHASE 1: Hardware & Storage Initialization ========== */
 
     lResult = NVS_Init();
-    ESP_LOGE(TAG, "Finish NVS Initialization with result: %" PRIu32, lResult);
+    ESP_LOGI(TAG, "Finish NVS Initialization with result: %" PRIu32, lResult);
 
     if(APP_SUCCESS == lResult)
     {
-        ESP_LOGE(TAG, "Start Fat FS Initialization.");
+        ESP_LOGI(TAG, "Start Fat FS Initialization.");
 
         lResult = FatFS_Init();
-        ESP_LOGE(TAG, "Finish Fat FS Initialization with result: %" PRIu32, lResult);
+        ESP_LOGI(TAG, "Finish Fat FS Initialization with result: %" PRIu32, lResult);
     }
 
     if(APP_SUCCESS == lResult)
@@ -174,10 +175,10 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
 
     if(APP_SUCCESS == lResult)
     {
-        ESP_LOGE(TAG, "Start Touch Screen Display Initialization.");
+        ESP_LOGI(TAG, "Start Touch Screen Display Initialization.");
 
         lResult = TouchScreen_DisplayInit();
-        ESP_LOGE(TAG, "Finish Touch Screen Display Initialization with result: %" PRIu32, lResult);
+        ESP_LOGI(TAG, "Finish Touch Screen Display Initialization with result: %" PRIu32, lResult);
     }
 
     /* ========== PHASE 2: Asset Verification ========== */
@@ -188,10 +189,10 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
 
     if(APP_SUCCESS == lResult)
     {
-        ESP_LOGE(TAG, "Start WiFi Initialization.");
+        ESP_LOGI(TAG, "Start WiFi Initialization.");
 
         lResult = WiFi_Manager_Init(&ptAppTaskRsc->hWiFiManager);
-        ESP_LOGE(TAG, "Finish WiFi Initialization with result: %" PRIu32, lResult);
+        ESP_LOGI(TAG, "Finish WiFi Initialization with result: %" PRIu32, lResult);
     }
 
     /* RingBell: Initialize bell GPIO and duration timer */
@@ -226,7 +227,7 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
 
     if(APP_SUCCESS == lResult)
     {
-        ESP_LOGE(TAG, "Start Web Server Initialization.");
+        ESP_LOGI(TAG, "Start Web Server Initialization.");
 
         WEB_SERVER_PARAMS_T tWebServerParams = 
         {
@@ -235,7 +236,7 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
         };
 
         lResult = Ws_Init(&tWebServerParams, &ptAppTaskRsc->hWebServer);
-        ESP_LOGE(TAG, "Finish Web Server Initialization with result: %" PRIu32, lResult);
+        ESP_LOGI(TAG, "Finish Web Server Initialization with result: %" PRIu32, lResult);
     }
 
     /* TimeSync: Initialize SNTP after Ws_Init (requires TCP/IP stack) */
@@ -250,7 +251,7 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
 
     if(APP_SUCCESS == lResult)
     {
-        ESP_LOGE(TAG, "Start Touch Screen Task Initialization.");
+        ESP_LOGI(TAG, "Start Touch Screen Task Initialization.");
 
         /* Initialize touch screen component with priority one level lower than APP_TASK */
         TOUCHSCREEN_PARAMS_T tTouchScreenParams = 
@@ -259,19 +260,39 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
         };
 
         lResult = TouchScreen_Init(&tTouchScreenParams, &ptAppTaskRsc->hTouchScreen);
-        ESP_LOGE(TAG, "Finish Touch Screen Task Initialization with result: %" PRIu32, lResult);
+        ESP_LOGI(TAG, "Finish Touch Screen Task Initialization with result: %" PRIu32, lResult);
+    }
+
+    /* Connect TouchScreen schedule service to the Scheduler backend */
+    if(APP_SUCCESS == lResult)
+    {
+        TS_Schedule_Init(ptAppTaskRsc->hScheduler);
     }
 
     if(APP_SUCCESS == lResult)
     {
-        ESP_LOGE(TAG, "Showing splash screen");
-        TouchScreen_ShowSplash(ptAppTaskRsc->hTouchScreen, 5000);
+        ESP_LOGI(TAG, "Showing splash screen");
+        TouchScreen_ShowSplash(ptAppTaskRsc->hTouchScreen, 3000);
 
         /* Delay to let splash screen display */
-        vTaskDelay(pdMS_TO_TICKS(5100));
+        vTaskDelay(pdMS_TO_TICKS(3100));
 
-        ESP_LOGE(TAG, "Showing WiFi setup screen");
-        TouchScreen_ShowWiFiSetup(ptAppTaskRsc->hTouchScreen, appTask_WiFiSetupCallback);
+        /* Check if WiFi is already configured */
+        uint32_t ulWiFiConfigState = 0;
+        esp_err_t espWiFiErr = WiFi_Manager_GetConfigurationState(
+            ptAppTaskRsc->hWiFiManager, &ulWiFiConfigState);
+
+        if (ESP_OK == espWiFiErr &&
+            WIFI_MANAGER_CONFIGURATION_STATE_CONFIGURED == ulWiFiConfigState)
+        {
+            ESP_LOGI(TAG, "WiFi configured — showing dashboard");
+            TouchScreen_ShowDashboard(ptAppTaskRsc->hTouchScreen);
+        }
+        else
+        {
+            ESP_LOGI(TAG, "WiFi not configured — showing WiFi setup");
+            TouchScreen_ShowWiFiSetup(ptAppTaskRsc->hTouchScreen, appTask_WiFiSetupCallback);
+        }
     }
     
     return lResult;

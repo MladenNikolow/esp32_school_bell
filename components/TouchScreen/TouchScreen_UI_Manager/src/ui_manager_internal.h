@@ -12,35 +12,20 @@ extern "C" {
  * @brief Internal UI manager state
  */
 typedef struct {
-    TouchScreen_UI_Screen_t current_screen;
-    TouchScreen_WiFi_Setup_Callback_t wifi_callback;
+    TouchScreen_UI_Screen_t      current_screen;     /**< Active screen */
+    TouchScreen_UI_Screen_t      overlay_screen;      /**< Overlay on top (-1 if none) */
+    TouchScreen_WiFi_Setup_Callback_t wifi_callback;  /**< WiFi callback (set before showing wifi screen) */
+    TouchScreen_PIN_Result_Callback_t    pin_callback;   /**< PIN result callback (set before showing PIN overlay) */
+    lv_obj_t                    *screen_obj;          /**< Current screen LVGL object (set before create) */
+    lv_obj_t                    *statusbar;           /**< Status bar object (persistent) */
+    lv_obj_t                    *navbar;              /**< Navbar object (persistent) */
+    lv_timer_t                  *update_timer;        /**< 1-second periodic update timer */
+    bool                         initialized;
+    bool                         wifi_is_initial_setup; /**< true = boot-time WiFi setup, false = runtime reconfiguration */
 } touchscreen_ui_manager_state_t;
 
-/**
- * @brief Initialize UI manager (internal)
- * 
- * @return true on success, false otherwise
- */
-bool touchscreen_ui_manager_init(void);
-
-/**
- * @brief Show splash screen (internal)
- * 
- * @param duration_ms Duration in milliseconds
- */
-void touchscreen_ui_show_splash(uint32_t duration_ms);
-
-/**
- * @brief Show WiFi setup screen (internal)
- * 
- * @param callback Callback function
- */
-void touchscreen_ui_show_wifi_setup(TouchScreen_WiFi_Setup_Callback_t callback);
-
-/**
- * @brief Deinitialize UI manager (internal)
- */
-void touchscreen_ui_manager_deinit(void);
+/* Screen definitions are registered in ui_manager.c */
+extern touchscreen_ui_manager_state_t g_ui_state;
 
 #ifdef __cplusplus
 }

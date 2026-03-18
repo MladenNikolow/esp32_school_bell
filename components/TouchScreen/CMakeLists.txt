@@ -2,20 +2,43 @@ idf_component_register(
     SRCS 
         "TouchScreenAPI/src/TouchScreen_API.c"
         "TouchScreen_UI_Manager/src/ui_manager.c"
+        "TouchScreen_UI_Manager/src/ui_theme.c"
+        "TouchScreen_UI_Manager/src/ui_statusbar.c"
+        "TouchScreen_UI_Manager/src/ui_navbar.c"
         "TouchScreen_UI_Manager/assets/ringy_logo.c"
         "TouchScreen_UI_Manager/screens/splash/splash_screen.c"
         "TouchScreen_UI_Manager/screens/wifi_setup/wifi_setup_screen.c"
+        "TouchScreen_UI_Manager/screens/pin_entry/pin_entry_screen.c"
+        "TouchScreen_UI_Manager/screens/dashboard/dashboard_screen.c"
+        "TouchScreen_UI_Manager/screens/schedule_view/schedule_view_screen.c"
+        "TouchScreen_UI_Manager/screens/settings/settings_screen.c"
+        "TouchScreen_UI_Manager/screens/info/info_screen.c"
         "TouchScreen_UI_Manager/components/button/button_component.c"
         "TouchScreen_UI_Manager/components/input_field/input_field_component.c"
+        "TouchScreen_UI_Manager/components/card/card_component.c"
+        "TouchScreen_UI_Manager/components/wifi_list_item/wifi_list_item_component.c"
+        "TouchScreen_Services/src/ts_pin_service.c"
+        "TouchScreen_Services/src/ts_bell_service.c"
+        "TouchScreen_Services/src/ts_schedule_service.c"
+        "TouchScreen_Services/src/ts_wifi_service.c"
     INCLUDE_DIRS 
         "TouchScreenAPI/include"
         "TouchScreen_UI_Manager/include"
         "TouchScreen_UI_Manager/src"
         "TouchScreen_UI_Manager/assets"
+        "TouchScreen_Services/include"
     REQUIRES
         freertos
         esp_common
+        esp_timer
+        esp_wifi
+        esp_app_format
+        efuse
         lvgl
         waveshare__esp32_s3_touch_lcd_4
         Generic
+        NVS
+        RingBell
+        Scheduler
+        WiFi_Manager
 )

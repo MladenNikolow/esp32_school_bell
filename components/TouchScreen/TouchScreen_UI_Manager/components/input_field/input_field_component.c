@@ -35,6 +35,10 @@ lv_obj_t *input_field_component_create(lv_obj_t *parent, int32_t width, int32_t 
     lv_obj_set_style_border_color(textarea, lv_color_hex(INPUT_BORDER_COLOR), LV_PART_MAIN);
     lv_obj_set_style_border_width(textarea, 2, LV_PART_MAIN);
 
+    /* Blue border highlight when focused */
+    lv_obj_set_style_border_color(textarea, lv_color_hex(0x2196F3), LV_PART_MAIN | LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(textarea, 2, LV_PART_MAIN | LV_STATE_FOCUSED);
+
     /* Set radius for rounded corners */
     lv_obj_set_style_radius(textarea, 6, LV_PART_MAIN);
 

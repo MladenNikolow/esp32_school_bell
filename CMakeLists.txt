@@ -6,5 +6,7 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 add_compile_options(-Wno-format)
 
+set(PROJECT_VER "1.0.0")
+
 project(esp32_school_bell)
 add_subdirectory(data)

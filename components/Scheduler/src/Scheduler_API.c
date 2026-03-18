@@ -371,6 +371,9 @@ scheduler_Task(void* pvArg)
         struct tm tNow;
         TimeSync_GetLocalTime(&tNow);
 
+        /* Defense-in-depth: reject obviously invalid system time */
+        if (tNow.tm_year < 124) continue;  /* year < 2024 */
+
         xSemaphoreTake(ptRsc->hMutex, portMAX_DELAY);
 
         /* Reset fired bitmap at midnight */
@@ -564,8 +567,9 @@ Scheduler_GetStatus(SCHEDULER_H hScheduler, SCHEDULER_STATUS_T* ptStatus)
     SCHEDULER_RSC_T* ptRsc = (SCHEDULER_RSC_T*)hScheduler;
 
     memset(ptStatus, 0, sizeof(SCHEDULER_STATUS_T));
-    ptStatus->bRunning    = ptRsc->bRunning;
-    ptStatus->bTimeSynced = TimeSync_IsSynced();
+    ptStatus->bRunning         = ptRsc->bRunning;
+    ptStatus->bTimeSynced      = TimeSync_IsSynced();
+    ptStatus->ulLastSyncAgeSec = TimeSync_GetLastSyncAgeSec();
 
     TimeSync_GetLocalTime(&ptStatus->tCurrentTime);
 

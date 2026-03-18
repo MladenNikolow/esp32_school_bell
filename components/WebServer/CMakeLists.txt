@@ -11,6 +11,7 @@ idf_component_register(
         "src/React/WS_React_Routes.c"
         "src/React/RestAPI/Example/ExampleAPI.c"
         "src/React/RestAPI/Schedule/ScheduleAPI.c"
+        "src/React/RestAPI/Pin/PinAPI.c"
     INCLUDE_DIRS "src"
     REQUIRES
         esp_http_server
@@ -24,4 +25,5 @@ idf_component_register(
         Scheduler
         RingBell
         TimeSync
+        TouchScreen
 )

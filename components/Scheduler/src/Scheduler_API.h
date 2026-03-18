@@ -29,6 +29,7 @@ typedef struct
 {
     bool            bRunning;
     bool            bTimeSynced;
+    uint32_t        ulLastSyncAgeSec;
     DAY_TYPE_E      eDayType;
     NEXT_BELL_INFO_T tNextBell;
     struct tm       tCurrentTime;

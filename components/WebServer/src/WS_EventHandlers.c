@@ -31,6 +31,7 @@ static const char* TAG = "WS_EVENT_HANDLERS";
 static esp_timer_handle_t s_hReconnectTimer  = NULL;
 static uint32_t           s_ulRetryCount     = 0;
 static uint32_t           s_ulApClientCount  = 0;
+static bool               s_bReconnectSuspended = false;
 
 static void
 ws_ReconnectTimerCb(void* pvArg)
@@ -48,6 +49,12 @@ ws_ReconnectTimerCb(void* pvArg)
         return;
     }
 
+    if (s_bReconnectSuspended)
+    {
+        ESP_LOGI(TAG, "STA reconnect deferred — suspended for WiFi scan.");
+        return;
+    }
+
     ESP_LOGI(TAG, "Retrying WiFi connection (attempt %" PRIu32 ")...", s_ulRetryCount);
     (void)esp_wifi_connect();
 }
@@ -55,6 +62,12 @@ ws_ReconnectTimerCb(void* pvArg)
 static void
 ws_ScheduleReconnect(void)
 {
+    if (s_bReconnectSuspended)
+    {
+        ESP_LOGI(TAG, "Reconnect scheduling suppressed — suspended for WiFi scan.");
+        return;
+    }
+
     /* Exponential back-off: delay = MIN * 2^retries, capped at MAX.
        Retries are indefinite — the soft-AP ("ESP32_Setup") started
        in APSTA mode by ws_ConfigureSta() remains reachable between
@@ -238,4 +251,27 @@ Ws_EventHandler_ApWiFi(void* pvArg,
             break;
         }
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* Suspend / Resume reconnect (used during WiFi scans)                 */
+/* ------------------------------------------------------------------ */
+
+void
+Ws_EventHandlers_SuspendReconnect(void)
+{
+    s_bReconnectSuspended = true;
+    if (NULL != s_hReconnectTimer)
+    {
+        (void)esp_timer_stop(s_hReconnectTimer);
+    }
+    ESP_LOGI(TAG, "STA reconnect suspended.");
+}
+
+void
+Ws_EventHandlers_ResumeReconnect(void)
+{
+    s_bReconnectSuspended = false;
+    ESP_LOGI(TAG, "STA reconnect resumed.");
+    /* The next STA_DISCONNECTED event will schedule a reconnect. */
 }

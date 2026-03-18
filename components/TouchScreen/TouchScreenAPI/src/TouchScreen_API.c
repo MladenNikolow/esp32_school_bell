@@ -4,6 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "lvgl.h"
 #include "bsp/esp-bsp.h"
 
@@ -21,6 +22,7 @@ typedef enum {
     TOUCHSCREEN_EVENT_NONE = 0,
     TOUCHSCREEN_EVENT_SHOW_SPLASH,
     TOUCHSCREEN_EVENT_SHOW_WIFI_SETUP,
+    TOUCHSCREEN_EVENT_SHOW_DASHBOARD,
     TOUCHSCREEN_EVENT_UPDATE_SCREEN,
 } TOUCHSCREEN_EVENT_ID_T;
 
@@ -53,6 +55,7 @@ static TOUCHSCREEN_RSC_T* gs_ptTouchScreenRsc = NULL;
 static void touchScreen_TaskEntry(void* pvArg);
 static int32_t touchScreen_HandleSplashEvent(TOUCHSCREEN_RSC_T* ptRsc, uint32_t duration_ms);
 static int32_t touchScreen_HandleWiFiSetupEvent(TOUCHSCREEN_RSC_T* ptRsc);
+static int32_t touchScreen_HandleDashboardEvent(TOUCHSCREEN_RSC_T* ptRsc);
 
 /**
  * @brief Initialize the BSP display hardware
@@ -65,7 +68,19 @@ int32_t TouchScreen_DisplayInit(void)
     
     ESP_LOGI(TAG, "Initializing display");
     
-    bsp_display_start();
+    /* Use custom config with larger LVGL task stack (default 7168 is too small
+       for the complex dashboard UI with nested cards, buttons, and overlays) */
+    bsp_display_cfg_t cfg = {
+        .lvgl_port_cfg = {
+            .task_priority    = 4,
+            .task_stack       = 10240,
+            .task_affinity    = -1,
+            .task_max_sleep_ms = 500,
+            .task_stack_caps  = MALLOC_CAP_INTERNAL | MALLOC_CAP_DEFAULT,
+            .timer_period_ms  = 5,
+        }
+    };
+    bsp_display_start_with_config(&cfg);
     
     /* Verify LVGL has completed initialization by checking display object */
     while (ulRetries < MAX_RETRIES && lv_display_get_default() == NULL) {
@@ -215,6 +230,28 @@ int32_t TouchScreen_ShowWiFiSetup(TOUCHSCREEN_H hTouchScreen, void (*wifi_setup_
 }
 
 /**
+ * @brief Show the main dashboard screen
+ */
+int32_t TouchScreen_ShowDashboard(TOUCHSCREEN_H hTouchScreen)
+{
+    TOUCHSCREEN_RSC_T* ptRsc = (TOUCHSCREEN_RSC_T*)hTouchScreen;
+    TOUCHSCREEN_EVENT_T tEvent = {
+        .ulEvent = TOUCHSCREEN_EVENT_SHOW_DASHBOARD,
+    };
+
+    if (NULL == ptRsc) {
+        return APP_ERROR_INVALID_PARAM;
+    }
+
+    if (pdPASS == xQueueSend(ptRsc->hEventQueue, &tEvent, pdMS_TO_TICKS(100))) {
+        return APP_SUCCESS;
+    }
+
+    ESP_LOGW(TAG, "Failed to send dashboard event to queue");
+    return APP_ERROR_QUEUE_SEND_FAILED;
+}
+
+/**
  * @brief Touch screen task main entry point
  */
 static void touchScreen_TaskEntry(void* pvArg)
@@ -257,6 +294,11 @@ static void touchScreen_TaskEntry(void* pvArg)
                 case TOUCHSCREEN_EVENT_SHOW_WIFI_SETUP:
                     ESP_LOGI(TAG, "Showing WiFi setup screen");
                     touchScreen_HandleWiFiSetupEvent(ptRsc);
+                    break;
+
+                case TOUCHSCREEN_EVENT_SHOW_DASHBOARD:
+                    ESP_LOGI(TAG, "Showing dashboard screen");
+                    touchScreen_HandleDashboardEvent(ptRsc);
                     break;
 
                 case TOUCHSCREEN_EVENT_NONE:
@@ -310,6 +352,20 @@ static int32_t touchScreen_HandleWiFiSetupEvent(TOUCHSCREEN_RSC_T* ptRsc)
 
     /* Show WiFi setup screen with callback wrapper */
     TouchScreen_UI_ShowWiFiSetup(touchScreen_WiFiCallbackWrapper);
+
+    return APP_SUCCESS;
+}
+
+/**
+ * @brief Handle dashboard screen event
+ */
+static int32_t touchScreen_HandleDashboardEvent(TOUCHSCREEN_RSC_T* ptRsc)
+{
+    if (NULL == ptRsc) {
+        return APP_ERROR_INVALID_PARAM;
+    }
+
+    TouchScreen_UI_ShowDashboard();
 
     return APP_SUCCESS;
 }

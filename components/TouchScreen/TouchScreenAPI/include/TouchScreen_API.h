@@ -22,60 +22,33 @@ typedef void* TOUCHSCREEN_H;
 
 /**
  * @brief Initialize the BSP display hardware
- * 
- * @note This function must be called before TouchScreen_Init() to properly
- *       initialize the display and rendering pipeline
- * 
- * @return ESP_OK on success, error code otherwise
  */
 int32_t TouchScreen_DisplayInit(void);
 
 /**
  * @brief Initialize and start the touch screen component
- * 
- * @note This function creates the touch screen task which manages:
- *       - Display rendering and refresh
- *       - Touch input handling
- *       - UI screens (splash, WiFi setup, etc.)
- *       - LVGL event loop integration
- * 
- * @note TouchScreen_DisplayInit() must be called before this function
- * 
- * @param ptParams Initialization parameters (must not be NULL)
- * @param phTouchScreen Output handle for touch screen component (must not be NULL)
- * 
- * @return ESP_OK on success, error code otherwise
  */
 int32_t TouchScreen_Init(TOUCHSCREEN_PARAMS_T* ptParams, TOUCHSCREEN_H* phTouchScreen);
 
 /**
  * @brief Deinitialize and stop the touch screen component
- * 
- * @param hTouchScreen Touch screen handle
- * 
- * @return ESP_OK on success, error code otherwise
  */
 int32_t TouchScreen_Deinit(TOUCHSCREEN_H hTouchScreen);
 
 /**
  * @brief Show splash screen on the touch screen
- * 
- * @param hTouchScreen Touch screen handle
- * @param duration_ms Duration to display splash screen in milliseconds
- * 
- * @return ESP_OK on success, error code otherwise
  */
 int32_t TouchScreen_ShowSplash(TOUCHSCREEN_H hTouchScreen, uint32_t duration_ms);
 
 /**
- * @brief Show WiFi setup screen on the touch screen
- * 
- * @param hTouchScreen Touch screen handle
- * @param wifi_setup_callback Callback function when WiFi setup is complete (can be NULL)
- * 
- * @return ESP_OK on success, error code otherwise
+ * @brief Show WiFi setup screen
  */
 int32_t TouchScreen_ShowWiFiSetup(TOUCHSCREEN_H hTouchScreen, void (*wifi_setup_callback)(int result, const char *ssid, const char *password));
+
+/**
+ * @brief Show the main dashboard screen
+ */
+int32_t TouchScreen_ShowDashboard(TOUCHSCREEN_H hTouchScreen);
 
 #ifdef __cplusplus
 }

@@ -18,3 +18,7 @@ Ws_EventHandler_ApWiFi(void* pvArg,
                        esp_event_base_t tEventBase,
                        int32_t ulEventId, 
                        void* pvEventData);
+
+/* Suspend / resume STA reconnect timer (call around WiFi scans) */
+void Ws_EventHandlers_SuspendReconnect(void);
+void Ws_EventHandlers_ResumeReconnect(void);

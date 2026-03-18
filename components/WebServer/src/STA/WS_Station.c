@@ -10,6 +10,7 @@
 #include "React/WS_React_Routes.h"
 #include "React/RestAPI/Example/ExampleAPI.h"
 #include "React/RestAPI/Schedule/ScheduleAPI.h"
+#include "React/RestAPI/Pin/PinAPI.h"
 #include "Auth/WS_Auth.h"
 
 static const char* TAG = "WS_STATION";
@@ -18,6 +19,7 @@ static const char* TAG = "WS_STATION";
 
 static EXAMPLE_API_H s_hExampleApi = NULL;
 static SCHEDULE_API_H s_hScheduleApi = NULL;
+static PIN_API_H s_hPinApi = NULL;
 
 /* ----------------------------------------------------------------
    Helper: check whether the STA interface has an active connection
@@ -262,6 +264,17 @@ WS_Station_Start(SCHEDULER_H hScheduler, WIFI_MANAGER_H hWiFiManager)
     if (ESP_OK == espRslt)
     {
         espRslt = ScheduleAPI_Register(s_hScheduleApi, hHttpServer);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        PIN_API_PARAMS_T tPinParams = {0};
+        espRslt = PinAPI_Init(&tPinParams, &s_hPinApi);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        espRslt = PinAPI_Register(s_hPinApi, hHttpServer);
     }
 
     /* WiFi status endpoint — lets the frontend detect STA mode */

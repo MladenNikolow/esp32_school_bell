@@ -9,26 +9,22 @@ extern "C" {
 
 /**
  * @brief Create and display the WiFi setup screen (internal)
+ *        Shows network scan list → tap to select → password entry → connect
  * @param callback Function to call when user completes setup
+ * @param is_initial_setup true if first-time boot WiFi config, false if runtime reconfiguration
  */
-void touchscreen_wifi_setup_screen_create(TouchScreen_WiFi_Setup_Callback_t callback);
+void touchscreen_wifi_setup_screen_create(TouchScreen_WiFi_Setup_Callback_t callback, bool is_initial_setup);
 
 /**
- * @brief Destroy the WiFi setup screen (internal)
+ * @brief Destroy the WiFi setup screen and free resources (internal)
  */
 void touchscreen_wifi_setup_screen_destroy(void);
 
 /**
- * @brief Get current SSID value from input field (internal)
- * @return Pointer to SSID string
+ * @brief Periodic update for WiFi setup screen (called every 1s).
+ *        Auto-navigates to dashboard if WiFi reconnects via retry mechanism.
  */
-const char *touchscreen_wifi_setup_screen_get_ssid(void);
-
-/**
- * @brief Get current password value from input field (internal)
- * @return Pointer to password string
- */
-const char *touchscreen_wifi_setup_screen_get_password(void);
+void touchscreen_wifi_setup_screen_update(void);
 
 #ifdef __cplusplus
 }

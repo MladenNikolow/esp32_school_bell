@@ -618,6 +618,7 @@ handler_GetBellStatus(httpd_req_t* ptReq)
 
     /* Time */
     cJSON_AddBoolToObject(ptRoot, "timeSynced", tStatus.bTimeSynced);
+    cJSON_AddNumberToObject(ptRoot, "lastSyncAgeSec", (double)tStatus.ulLastSyncAgeSec);
     char acTime[20];
     snprintf(acTime, sizeof(acTime), "%02d:%02d:%02d",
              tStatus.tCurrentTime.tm_hour, tStatus.tCurrentTime.tm_min, tStatus.tCurrentTime.tm_sec);
@@ -710,6 +711,7 @@ handler_GetSystemTime(httpd_req_t* ptReq)
     cJSON_AddStringToObject(ptRoot, "date", acDate);
 
     cJSON_AddBoolToObject(ptRoot, "synced", TimeSync_IsSynced());
+    cJSON_AddNumberToObject(ptRoot, "lastSyncAgeSec", (double)TimeSync_GetLastSyncAgeSec());
 
     char acTz[64];
     TimeSync_GetTimezone(acTz, sizeof(acTz));
@@ -823,6 +825,7 @@ handler_GetSystemInfo(httpd_req_t* ptReq)
     cJSON_AddStringToObject(ptRoot, "date", acDate);
 
     cJSON_AddBoolToObject(ptRoot, "timeSynced", TimeSync_IsSynced());
+    cJSON_AddNumberToObject(ptRoot, "lastSyncAgeSec", (double)TimeSync_GetLastSyncAgeSec());
 
     char acTz[64];
     TimeSync_GetTimezone(acTz, sizeof(acTz));
@@ -904,6 +907,26 @@ handler_PostFactoryReset(httpd_req_t* ptReq)
 }
 
 /* ================================================================== */
+/* POST /api/system/sync-time                                          */
+/* ================================================================== */
+
+static esp_err_t
+handler_PostSyncTime(httpd_req_t* ptReq)
+{
+    const char* pcUser; const char* pcRole;
+    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+
+    ESP_LOGI(TAG, "Manual time sync requested by user %s", pcUser);
+    TimeSync_ForceSync();
+
+    cJSON* ptRoot = cJSON_CreateObject();
+    cJSON_AddStringToObject(ptRoot, "status", "ok");
+    cJSON_AddBoolToObject(ptRoot, "timeSynced", TimeSync_IsSynced());
+    cJSON_AddNumberToObject(ptRoot, "lastSyncAgeSec", (double)TimeSync_GetLastSyncAgeSec());
+    return sendJson(ptReq, ptRoot);
+}
+
+/* ================================================================== */
 /* Init & Register                                                     */
 /* ================================================================== */
 
@@ -945,6 +968,7 @@ ScheduleAPI_Register(SCHEDULE_API_H hApi, httpd_handle_t hHttpServer)
         { "/api/system/info",         HTTP_GET,  handler_GetSystemInfo,  ptRsc },
         { "/api/system/reboot",       HTTP_POST, handler_PostReboot,     ptRsc },
         { "/api/system/factory-reset",HTTP_POST, handler_PostFactoryReset, ptRsc },
+        { "/api/system/sync-time",  HTTP_POST, handler_PostSyncTime,     ptRsc },
         { "/api/schedule/defaults",   HTTP_GET,  handler_GetDefaults,    ptRsc },
     };
 
