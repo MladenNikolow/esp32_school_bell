@@ -11,6 +11,7 @@
 #include "RingBell_API.h"
 #include "TouchScreen_API.h"
 #include "TouchScreen_Services.h"
+#include "TouchScreen_UI_Manager.h"
 #include "esp_log.h"
 #include "esp_system.h"
 
@@ -62,6 +63,48 @@ appTask_WiFiSetupCallback(int result, const char *ssid, const char *password)
     else
     {
         ESP_LOGI(TAG, "WiFi setup cancelled or failed (result=%d)", result);
+    }
+}
+
+/**
+ * @brief Setup wizard callback - marks setup complete, optionally saves WiFi
+ *        credentials and restarts, or goes straight to the dashboard.
+ */
+static void
+appTask_SetupWizardCallback(bool completed, bool wifi_configured,
+                            const char *ssid, const char *password)
+{
+    if (!completed)
+    {
+        ESP_LOGW(TAG, "Setup wizard was not completed");
+        return;
+    }
+
+    TS_Setup_MarkComplete();
+    ESP_LOGI(TAG, "Setup wizard completed, setup marked as done");
+
+    if (wifi_configured && ssid != NULL && password != NULL)
+    {
+        ESP_LOGI(TAG, "Wizard WiFi configured for SSID '%s', saving and restarting", ssid);
+
+        esp_err_t espErr = WiFi_Manager_SaveCredentials(ssid, password);
+        if (ESP_OK == espErr)
+        {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            esp_restart();
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to save WiFi credentials: %s", esp_err_to_name(espErr));
+        }
+    }
+    else
+    {
+        ESP_LOGI(TAG, "No WiFi configured in wizard — showing dashboard");
+        /* This callback runs in the TouchScreen task context (via the
+         * wrapper in TouchScreen_API.c), so we can navigate directly
+         * through the UI manager. */
+        TouchScreen_UI_NavigateTo(TOUCHSCREEN_UI_SCREEN_DASHBOARD);
     }
 }
 
@@ -277,21 +320,33 @@ appTask_Init(APP_TASK_RSC_T* ptAppTaskRsc)
         /* Delay to let splash screen display */
         vTaskDelay(pdMS_TO_TICKS(3100));
 
-        /* Check if WiFi is already configured */
-        uint32_t ulWiFiConfigState = 0;
-        esp_err_t espWiFiErr = WiFi_Manager_GetConfigurationState(
-            ptAppTaskRsc->hWiFiManager, &ulWiFiConfigState);
+        /* Initialize first-time setup service and check for migration */
+        TS_Setup_Init();
+        TS_Setup_CheckMigration();
 
-        if (ESP_OK == espWiFiErr &&
-            WIFI_MANAGER_CONFIGURATION_STATE_CONFIGURED == ulWiFiConfigState)
+        if (!TS_Setup_IsComplete())
         {
-            ESP_LOGI(TAG, "WiFi configured — showing dashboard");
-            TouchScreen_ShowDashboard(ptAppTaskRsc->hTouchScreen);
+            ESP_LOGI(TAG, "First-time setup not complete — showing setup wizard");
+            TouchScreen_ShowSetupWizard(ptAppTaskRsc->hTouchScreen, appTask_SetupWizardCallback);
         }
         else
         {
-            ESP_LOGI(TAG, "WiFi not configured — showing WiFi setup");
-            TouchScreen_ShowWiFiSetup(ptAppTaskRsc->hTouchScreen, appTask_WiFiSetupCallback);
+            /* Check if WiFi is already configured */
+            uint32_t ulWiFiConfigState = 0;
+            esp_err_t espWiFiErr = WiFi_Manager_GetConfigurationState(
+                ptAppTaskRsc->hWiFiManager, &ulWiFiConfigState);
+
+            if (ESP_OK == espWiFiErr &&
+                WIFI_MANAGER_CONFIGURATION_STATE_CONFIGURED == ulWiFiConfigState)
+            {
+                ESP_LOGI(TAG, "WiFi configured — showing dashboard");
+                TouchScreen_ShowDashboard(ptAppTaskRsc->hTouchScreen);
+            }
+            else
+            {
+                ESP_LOGI(TAG, "WiFi not configured — showing WiFi setup");
+                TouchScreen_ShowWiFiSetup(ptAppTaskRsc->hTouchScreen, appTask_WiFiSetupCallback);
+            }
         }
     }
     

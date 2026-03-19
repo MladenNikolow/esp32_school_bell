@@ -3,6 +3,7 @@
 #include "Scheduler_API.h"
 #include "RingBell_API.h"
 #include "TimeSync_API.h"
+#include "TouchScreen_Services.h"
 #include "Auth/WS_Auth.h"
 #include "cJSON.h"
 #include "esp_log.h"
@@ -899,6 +900,11 @@ handler_PostFactoryReset(httpd_req_t* ptReq)
     SCHEDULE_SETTINGS_T tSettings;
     Schedule_Data_LoadSettings(&tSettings);
     TimeSync_SetTimezone(tSettings.acTimezone);
+
+    /* Clear first-time setup flag and stored PIN so the wizard
+     * will re-appear on the next boot. */
+    TS_Setup_Reset();
+    TS_Pin_Reset();
 
     cJSON* ptResp = cJSON_CreateObject();
     cJSON_AddStringToObject(ptResp, "status", "ok");

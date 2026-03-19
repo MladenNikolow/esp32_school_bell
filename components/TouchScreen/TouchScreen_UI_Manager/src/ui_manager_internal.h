@@ -16,6 +16,7 @@ typedef struct {
     TouchScreen_UI_Screen_t      overlay_screen;      /**< Overlay on top (-1 if none) */
     TouchScreen_WiFi_Setup_Callback_t wifi_callback;  /**< WiFi callback (set before showing wifi screen) */
     TouchScreen_PIN_Result_Callback_t    pin_callback;   /**< PIN result callback (set before showing PIN overlay) */
+    TouchScreen_Setup_Wizard_Callback_t   wizard_callback; /**< Setup wizard completion callback */
     lv_obj_t                    *screen_obj;          /**< Current screen LVGL object (set before create) */
     lv_obj_t                    *statusbar;           /**< Status bar object (persistent) */
     lv_obj_t                    *navbar;              /**< Navbar object (persistent) */

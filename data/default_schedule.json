@@ -8,27 +8,27 @@
   "firstShift": {
     "enabled": true,
     "bells": [
-      { "hour":  8, "minute":  0, "durationSec": 3, "label": "Class 1 start" },
-      { "hour":  8, "minute": 45, "durationSec": 3, "label": "Class 1 end" },
-      { "hour":  8, "minute": 55, "durationSec": 3, "label": "Class 2 start" },
-      { "hour":  9, "minute": 40, "durationSec": 3, "label": "Class 2 end" },
-      { "hour":  9, "minute": 50, "durationSec": 3, "label": "Class 3 start" },
-      { "hour": 10, "minute": 35, "durationSec": 3, "label": "Class 3 end" },
-      { "hour": 11, "minute": 10, "durationSec": 3, "label": "Class 4 start" },
-      { "hour": 11, "minute": 55, "durationSec": 3, "label": "Class 4 end" },
-      { "hour": 12, "minute":  5, "durationSec": 3, "label": "Class 5 start" },
-      { "hour": 12, "minute": 50, "durationSec": 3, "label": "Class 5 end" },
-      { "hour": 13, "minute":  0, "durationSec": 3, "label": "Class 6 start" },
-      { "hour": 13, "minute": 45, "durationSec": 3, "label": "Class 6 end" }
+      { "hour":  8, "minute":  0, "durationSec": 3, "label": "Час 1 начало" },
+      { "hour":  8, "minute": 45, "durationSec": 3, "label": "Час 1 край" },
+      { "hour":  8, "minute": 55, "durationSec": 3, "label": "Час 2 начало" },
+      { "hour":  9, "minute": 40, "durationSec": 3, "label": "Час 2 край" },
+      { "hour":  9, "minute": 50, "durationSec": 3, "label": "Час 3 начало" },
+      { "hour": 10, "minute": 35, "durationSec": 3, "label": "Час 3 край" },
+      { "hour": 11, "minute": 10, "durationSec": 3, "label": "Час 4 начало" },
+      { "hour": 11, "minute": 55, "durationSec": 3, "label": "Час 4 край" },
+      { "hour": 12, "minute":  5, "durationSec": 3, "label": "Час 5 начало" },
+      { "hour": 12, "minute": 50, "durationSec": 3, "label": "Час 5 край" },
+      { "hour": 13, "minute":  0, "durationSec": 3, "label": "Час 6 начало" },
+      { "hour": 13, "minute": 45, "durationSec": 3, "label": "Час 6 край" }
     ]
   },
   "secondShift": {
     "enabled": true,
     "bells": [
-      { "hour": 14, "minute":  0, "durationSec": 3, "label": "Class 7 start" },
-      { "hour": 14, "minute": 45, "durationSec": 3, "label": "Class 7 end" },
-      { "hour": 14, "minute": 55, "durationSec": 3, "label": "Class 8 start" },
-      { "hour": 15, "minute": 40, "durationSec": 3, "label": "Class 8 end" }
+      { "hour": 14, "minute":  0, "durationSec": 3, "label": "Час 7 начало" },
+      { "hour": 14, "minute": 45, "durationSec": 3, "label": "Час 7 край" },
+      { "hour": 14, "minute": 55, "durationSec": 3, "label": "Час 8 начало" },
+      { "hour": 15, "minute": 40, "durationSec": 3, "label": "Час 8 край" }
     ]
   },
 

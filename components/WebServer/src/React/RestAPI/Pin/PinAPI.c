@@ -139,7 +139,7 @@ handler_GetPin(httpd_req_t *ptReq)
         return ESP_OK;
     }
 
-    char acPin[5] = {0};
+    char acPin[7] = {0};
     esp_err_t err = TS_Pin_Get(acPin, sizeof(acPin));
     if (ESP_OK != err)
     {
@@ -193,7 +193,7 @@ handler_PostPin(httpd_req_t *ptReq)
     if (ESP_OK != err)
     {
         return sendError(ptReq, "400 Bad Request",
-                         "Invalid PIN — must be exactly 4 digits");
+                         "Invalid PIN \xe2\x80\x94 must be 4-6 digits");
     }
 
     cJSON *ptResp = cJSON_CreateObject();

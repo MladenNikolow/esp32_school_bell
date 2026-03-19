@@ -18,8 +18,9 @@ typedef enum {
     TOUCHSCREEN_UI_SCREEN_DASHBOARD,
     TOUCHSCREEN_UI_SCREEN_SCHEDULE_VIEW,
     TOUCHSCREEN_UI_SCREEN_SETTINGS,
-    TOUCHSCREEN_UI_SCREEN_INFO,       /* Device info / about screen */
-    TOUCHSCREEN_UI_SCREEN_PIN_ENTRY,  /* Overlay screen */
+    TOUCHSCREEN_UI_SCREEN_INFO,           /* Device info / about screen */
+    TOUCHSCREEN_UI_SCREEN_PIN_ENTRY,      /* Overlay screen */
+    TOUCHSCREEN_UI_SCREEN_SETUP_WIZARD,   /* First-time setup wizard */
     TOUCHSCREEN_UI_SCREEN_MAX
 } TouchScreen_UI_Screen_t;
 
@@ -42,6 +43,18 @@ typedef void (*TouchScreen_WiFi_Setup_Callback_t)(TouchScreen_WiFi_Setup_Result_
  * @param success true if correct PIN was entered, false if cancelled
  */
 typedef void (*TouchScreen_PIN_Result_Callback_t)(bool success);
+
+/**
+ * @brief Setup wizard completion callback
+ * @param completed true if wizard was completed (language + PIN set), false if interrupted
+ * @param wifi_configured true if WiFi was configured during wizard
+ * @param ssid WiFi SSID if configured, NULL otherwise
+ * @param password WiFi password if configured, NULL otherwise
+ */
+typedef void (*TouchScreen_Setup_Wizard_Callback_t)(bool completed,
+                                                      bool wifi_configured,
+                                                      const char *ssid,
+                                                      const char *password);
 
 /**
  * @brief Screen lifecycle callbacks — each screen must implement these

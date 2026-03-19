@@ -137,6 +137,7 @@ static const char * const s_strings_bg[STR_COUNT] = {
     [STR_BACK]                = "Назад",
     [STR_CONNECT_TO]          = "Свързване с:",
     [STR_PASSWORD]            = "Парола",
+    [STR_ENTER_SSID]           = "Въведете SSID",
     [STR_ENTER_PASSWORD]      = "Въведете парола",
     [STR_SHOW_PASSWORD]       = "Покажи парола",
     [STR_CONNECT]             = "Свържи",
@@ -147,6 +148,24 @@ static const char * const s_strings_bg[STR_COUNT] = {
     [STR_CONNECTED]           = "Свързан!",
     [STR_CONNECTING_BG]       = "Свързване...",
     [STR_LOCKED_FOR]          = "Заключен за %lus",
+
+    /* Setup wizard */
+    [STR_WIZARD_CHOOSE_LANG]  = "Изберете език",
+    [STR_WIZARD_CHOOSE_LANG_DESC] = "Choose Language / Изберете език",
+    [STR_WIZARD_SET_PIN]      = "Задайте ПИН код",
+    [STR_WIZARD_SET_PIN_DESC] = "Изберете дължина и въведете ПИН",
+    [STR_WIZARD_CONFIRM_PIN]  = "Потвърдете ПИН",
+    [STR_WIZARD_PIN_MISMATCH] = "ПИН кодовете не съвпадат",
+    [STR_WIZARD_PIN_SET_OK]   = "ПИН кодът е зададен",
+    [STR_WIZARD_WIFI_TITLE]   = "WiFi мрежа",
+    [STR_WIZARD_WIFI_DESC]    = "Свържете се с WiFi или пропуснете",
+    [STR_WIZARD_FINISH]       = "Готово",
+    [STR_WIZARD_NEXT]         = "Напред",
+    [STR_WIZARD_PIN_LENGTH]   = "Дължина на ПИН",
+    [STR_WIZARD_DIGITS]       = "цифри",
+    [STR_WIZARD_ENTER_PIN]    = "Въведете нов ПИН",
+    [STR_WIZARD_SKIP_WIFI]    = "Пропусни",
+    [STR_WIZARD_SETUP_WIFI]   = "Настрой WiFi",
 };
 
 /* ------------------------------------------------------------------ */
@@ -276,6 +295,7 @@ static const char * const s_strings_en[STR_COUNT] = {
     [STR_BACK]                = "Back",
     [STR_CONNECT_TO]          = "Connect to:",
     [STR_PASSWORD]            = "Password",
+    [STR_ENTER_SSID]           = "Enter SSID",
     [STR_ENTER_PASSWORD]      = "Enter password",
     [STR_SHOW_PASSWORD]       = "Show password",
     [STR_CONNECT]             = "Connect",
@@ -286,6 +306,24 @@ static const char * const s_strings_en[STR_COUNT] = {
     [STR_CONNECTED]           = "Connected!",
     [STR_CONNECTING_BG]       = "Connecting in background...",
     [STR_LOCKED_FOR]          = "Locked for %lus",
+
+    /* Setup wizard */
+    [STR_WIZARD_CHOOSE_LANG]  = "Choose Language",
+    [STR_WIZARD_CHOOSE_LANG_DESC] = "Choose Language / Изберете език",
+    [STR_WIZARD_SET_PIN]      = "Set PIN Code",
+    [STR_WIZARD_SET_PIN_DESC] = "Choose length and enter PIN",
+    [STR_WIZARD_CONFIRM_PIN]  = "Confirm PIN",
+    [STR_WIZARD_PIN_MISMATCH] = "PINs don't match",
+    [STR_WIZARD_PIN_SET_OK]   = "PIN set successfully",
+    [STR_WIZARD_WIFI_TITLE]   = "WiFi Network",
+    [STR_WIZARD_WIFI_DESC]    = "Connect to WiFi or skip",
+    [STR_WIZARD_FINISH]       = "Finish",
+    [STR_WIZARD_NEXT]         = "Next",
+    [STR_WIZARD_PIN_LENGTH]   = "PIN Length",
+    [STR_WIZARD_DIGITS]       = "digits",
+    [STR_WIZARD_ENTER_PIN]    = "Enter new PIN",
+    [STR_WIZARD_SKIP_WIFI]    = "Skip",
+    [STR_WIZARD_SETUP_WIFI]   = "Setup WiFi",
 };
 
 /* ------------------------------------------------------------------ */

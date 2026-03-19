@@ -11,6 +11,7 @@
 #include "../screens/schedule_view/schedule_view_screen_internal.h"
 #include "../screens/settings/settings_screen_internal.h"
 #include "../screens/info/info_screen_internal.h"
+#include "../screens/setup_wizard/setup_wizard_screen_internal.h"
 #include "TouchScreen_UI_Manager.h"
 #include "TouchScreen_Services.h"
 #include "esp_log.h"
@@ -57,6 +58,9 @@ static void screen_info_destroy(void);
 static void screen_info_update(void);
 static void screen_pin_entry_create(void);
 static void screen_pin_entry_destroy(void);
+static void screen_setup_wizard_create(void);
+static void screen_setup_wizard_destroy(void);
+static void screen_setup_wizard_update(void);
 
 /* Screen definition registry — indexed by TouchScreen_UI_Screen_t */
 static const TouchScreen_Screen_Def_t s_screen_defs[TOUCHSCREEN_UI_SCREEN_MAX] = {
@@ -101,6 +105,12 @@ static const TouchScreen_Screen_Def_t s_screen_defs[TOUCHSCREEN_UI_SCREEN_MAX] =
         .destroy = screen_pin_entry_destroy,
         .update = NULL,
         .show_chrome = false,  /* Overlay — doesn't need its own chrome */
+    },
+    [TOUCHSCREEN_UI_SCREEN_SETUP_WIZARD] = {
+        .create = screen_setup_wizard_create,
+        .destroy = screen_setup_wizard_destroy,
+        .update = screen_setup_wizard_update,
+        .show_chrome = false,  /* Wizard has its own navigation */
     },
 };
 
@@ -446,6 +456,13 @@ void TouchScreen_UI_ShowPinEntry(TouchScreen_PIN_Result_Callback_t callback)
     TouchScreen_UI_PushOverlay(TOUCHSCREEN_UI_SCREEN_PIN_ENTRY);
 }
 
+void TouchScreen_UI_ShowSetupWizard(TouchScreen_Setup_Wizard_Callback_t callback)
+{
+    ESP_LOGI(TAG, "Showing setup wizard");
+    g_ui_state.wizard_callback = callback;
+    TouchScreen_UI_NavigateTo(TOUCHSCREEN_UI_SCREEN_SETUP_WIZARD);
+}
+
 /* =========================================================================
  * Screen create/destroy wrappers
  * These bridge between the registry pattern and the actual screen implementations.
@@ -550,6 +567,22 @@ static void screen_pin_entry_create(void)
 static void screen_pin_entry_destroy(void)
 {
     touchscreen_pin_entry_screen_destroy();
+}
+
+/* === Setup Wizard === */
+static void screen_setup_wizard_create(void)
+{
+    touchscreen_setup_wizard_screen_create();
+}
+
+static void screen_setup_wizard_destroy(void)
+{
+    touchscreen_setup_wizard_screen_destroy();
+}
+
+static void screen_setup_wizard_update(void)
+{
+    touchscreen_setup_wizard_screen_update();
 }
 
 /* =========================================================================

@@ -21,6 +21,7 @@ idf_component_register(
         "TouchScreen_UI_Manager/screens/schedule_view/schedule_view_screen.c"
         "TouchScreen_UI_Manager/screens/settings/settings_screen.c"
         "TouchScreen_UI_Manager/screens/info/info_screen.c"
+        "TouchScreen_UI_Manager/screens/setup_wizard/setup_wizard_screen.c"
         "TouchScreen_UI_Manager/components/button/button_component.c"
         "TouchScreen_UI_Manager/components/input_field/input_field_component.c"
         "TouchScreen_UI_Manager/components/card/card_component.c"
@@ -29,6 +30,7 @@ idf_component_register(
         "TouchScreen_Services/src/ts_bell_service.c"
         "TouchScreen_Services/src/ts_schedule_service.c"
         "TouchScreen_Services/src/ts_wifi_service.c"
+        "TouchScreen_Services/src/ts_setup_service.c"
     INCLUDE_DIRS 
         "TouchScreenAPI/include"
         "TouchScreen_UI_Manager/include"

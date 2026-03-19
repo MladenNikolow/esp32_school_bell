@@ -15,15 +15,24 @@ extern "C" {
 /** @brief Initialize PIN service (opens NVS, writes default if needed). */
 esp_err_t TS_Pin_Init(void);
 
-/** @brief Validate a 4-digit PIN string against stored value.
+/** @brief Validate a PIN string against stored value.
  *  @return true if match, false otherwise (increments fail counter). */
 bool TS_Pin_Validate(const char *pcPin);
 
-/** @brief Change the stored PIN. PIN must be exactly 4 digits. */
+/** @brief Change the stored PIN. PIN must be 4-6 digits. */
 esp_err_t TS_Pin_Set(const char *pcNewPin);
 
-/** @brief Read the current PIN into buffer (must be >= 5 bytes). */
+/** @brief Read the current PIN into buffer (must be >= 7 bytes). */
 esp_err_t TS_Pin_Get(char *pcOutBuf, size_t ulBufLen);
+
+/** @brief Get length of the currently stored PIN (4-6). */
+uint8_t TS_Pin_GetLength(void);
+
+/** @brief Check if PIN was explicitly configured by user (not default). */
+bool TS_Pin_IsConfigured(void);
+
+/** @brief Erase the stored PIN and configured flag from NVS. */
+esp_err_t TS_Pin_Reset(void);
 
 /** @brief Check if locked out due to too many failed attempts. */
 bool TS_Pin_IsLockedOut(void);
@@ -33,6 +42,26 @@ uint32_t TS_Pin_GetLockoutRemaining(void);
 
 /** @brief Reset the failed attempt counter (called after successful PIN). */
 void TS_Pin_ResetAttempts(void);
+
+/* ================================================================== */
+/* Setup Wizard Service                                                */
+/* ================================================================== */
+
+/** @brief Initialize setup service (reads first-boot flag from NVS). */
+esp_err_t TS_Setup_Init(void);
+
+/** @brief Check if the initial setup wizard has been completed. */
+bool TS_Setup_IsComplete(void);
+
+/** @brief Mark the initial setup as complete (writes to NVS). */
+esp_err_t TS_Setup_MarkComplete(void);
+
+/** @brief Reset the setup flag so wizard shows again on next boot. */
+esp_err_t TS_Setup_Reset(void);
+
+/** @brief Auto-complete setup for existing devices being upgraded.
+ *  @return true if migration was applied, false otherwise. */
+bool TS_Setup_CheckMigration(void);
 
 /* ================================================================== */
 /* Bell Service                                                        */

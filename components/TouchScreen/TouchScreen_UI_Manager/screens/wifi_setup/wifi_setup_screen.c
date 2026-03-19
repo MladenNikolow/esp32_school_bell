@@ -928,7 +928,7 @@ view_show_manual(void)
     lv_obj_set_style_text_font(ssid_lbl, UI_FONT_CAPTION, 0);
 
     /* SSID input */
-    s_man_ssid_inp = input_field_component_create(s_man_container, 400, 38, "Enter SSID");
+    s_man_ssid_inp = input_field_component_create(s_man_container, 400, 38, ui_str(STR_ENTER_SSID));
     if (s_man_ssid_inp) {
         lv_obj_set_width(s_man_ssid_inp, lv_pct(100));
         input_field_component_set_max_length(s_man_ssid_inp, 32);

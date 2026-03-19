@@ -1,4 +1,5 @@
 #include "input_field_component.h"
+#include "ui_theme.h"
 #include "esp_log.h"
 
 static const char *TAG = "INPUT_FIELD_COMPONENT";
@@ -44,6 +45,9 @@ lv_obj_t *input_field_component_create(lv_obj_t *parent, int32_t width, int32_t 
 
     /* Set text color */
     lv_obj_set_style_text_color(textarea, lv_color_hex(INPUT_TEXT_COLOR), LV_PART_MAIN);
+
+    /* Use Cyrillic-capable font so Bulgarian placeholder text renders correctly */
+    lv_obj_set_style_text_font(textarea, UI_FONT_BODY_SMALL, LV_PART_MAIN);
 
     /* Set padding inside textarea */
     lv_obj_set_style_pad_all(textarea, 10, LV_PART_MAIN);
@@ -101,6 +105,9 @@ void input_field_component_set_password_mode(lv_obj_t *input_field, bool is_pass
     }
 
     lv_textarea_set_password_mode(input_field, is_password);
+    if (is_password) {
+        lv_textarea_set_password_bullet(input_field, "*");
+    }
 }
 
 void input_field_component_set_max_length(lv_obj_t *input_field, uint32_t max_length)

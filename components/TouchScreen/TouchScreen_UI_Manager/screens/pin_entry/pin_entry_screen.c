@@ -1,5 +1,5 @@
 /* ================================================================== */
-/* pin_entry_screen.c — 4-digit PIN numeric keypad overlay             */
+/* pin_entry_screen.c — variable-length PIN numeric keypad overlay     */
 /* ================================================================== */
 #include "pin_entry_screen_internal.h"
 #include "../../src/ui_manager_internal.h"
@@ -19,7 +19,7 @@ static const char *TAG = "PIN_ENTRY";
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
 /* ------------------------------------------------------------------ */
-#define PIN_LENGTH          4
+#define PIN_MAX_LEN         6
 #define KEY_COLS            3
 #define KEY_ROWS            4
 #define KEY_WIDTH           80
@@ -38,12 +38,13 @@ static const char *TAG = "PIN_ENTRY";
 static TouchScreen_PIN_Result_Callback_t s_callback    = NULL;
 static lv_obj_t *s_backdrop    = NULL;  /* Full-screen dark overlay */
 static lv_obj_t *s_panel       = NULL;  /* White card containing keypad */
-static lv_obj_t *s_dots[PIN_LENGTH]    = {0};
+static lv_obj_t *s_dots[PIN_MAX_LEN]   = {0};
 static lv_obj_t *s_status_label        = NULL;
 static lv_obj_t *s_lockout_label       = NULL;
 static lv_timer_t *s_lockout_timer     = NULL;
-static char      s_entered[PIN_LENGTH + 1] = {0};
+static char      s_entered[PIN_MAX_LEN + 1] = {0};
 static uint8_t   s_entered_count = 0;
+static uint8_t   s_pin_length    = 4;  /* Actual PIN length from NVS */
 
 /* ------------------------------------------------------------------ */
 /* Forward declarations                                                */
@@ -90,7 +91,7 @@ static void cancel_event_cb(lv_event_t *e)
 /* ------------------------------------------------------------------ */
 static void pin_update_dots(void)
 {
-    for (int i = 0; i < PIN_LENGTH; i++) {
+    for (int i = 0; i < s_pin_length; i++) {
         if (!s_dots[i]) continue;
         if (i < s_entered_count) {
             /* Filled dot */
@@ -124,7 +125,7 @@ static void pin_on_digit(uint8_t digit)
         return;
     }
 
-    if (s_entered_count >= PIN_LENGTH) return;
+    if (s_entered_count >= s_pin_length) return;
 
     s_entered[s_entered_count] = '0' + digit;
     s_entered_count++;
@@ -132,7 +133,7 @@ static void pin_on_digit(uint8_t digit)
 
     pin_update_dots();
 
-    if (s_entered_count == PIN_LENGTH) {
+    if (s_entered_count == s_pin_length) {
         pin_try_validate();
     }
 }
@@ -272,6 +273,9 @@ void touchscreen_pin_entry_screen_create(TouchScreen_PIN_Result_Callback_t callb
 {
     ESP_LOGI(TAG, "Creating PIN entry overlay");
     s_callback = callback;
+    s_pin_length = TS_Pin_GetLength();
+    if (s_pin_length < 4) s_pin_length = 4;
+    if (s_pin_length > PIN_MAX_LEN) s_pin_length = PIN_MAX_LEN;
     pin_clear_entry();
 
     bsp_display_lock(0);
@@ -325,7 +329,7 @@ void touchscreen_pin_entry_screen_create(TouchScreen_PIN_Result_Callback_t callb
     lv_obj_set_style_pad_column(dot_row, DOT_GAP, 0);
     lv_obj_set_scrollbar_mode(dot_row, LV_SCROLLBAR_MODE_OFF);
 
-    for (int i = 0; i < PIN_LENGTH; i++) {
+    for (int i = 0; i < s_pin_length; i++) {
         s_dots[i] = lv_obj_create(dot_row);
         lv_obj_set_size(s_dots[i], DOT_SIZE, DOT_SIZE);
         lv_obj_set_style_radius(s_dots[i], LV_RADIUS_CIRCLE, 0);

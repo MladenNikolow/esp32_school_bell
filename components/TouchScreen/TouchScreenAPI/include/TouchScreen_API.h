@@ -50,6 +50,12 @@ int32_t TouchScreen_ShowWiFiSetup(TOUCHSCREEN_H hTouchScreen, void (*wifi_setup_
  */
 int32_t TouchScreen_ShowDashboard(TOUCHSCREEN_H hTouchScreen);
 
+/**
+ * @brief Show the first-time setup wizard screen
+ */
+int32_t TouchScreen_ShowSetupWizard(TOUCHSCREEN_H hTouchScreen,
+    void (*wizard_callback)(bool completed, bool wifi_configured, const char *ssid, const char *password));
+
 #ifdef __cplusplus
 }
 #endif

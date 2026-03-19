@@ -60,6 +60,12 @@ void TouchScreen_UI_ShowDashboard(void);
  */
 void TouchScreen_UI_ShowPinEntry(TouchScreen_PIN_Result_Callback_t callback);
 
+/**
+ * @brief Show the first-time setup wizard — calls callback on completion
+ * @param callback Called with completion status, WiFi config, and credentials
+ */
+void TouchScreen_UI_ShowSetupWizard(TouchScreen_Setup_Wizard_Callback_t callback);
+
 #ifdef __cplusplus
 }
 #endif

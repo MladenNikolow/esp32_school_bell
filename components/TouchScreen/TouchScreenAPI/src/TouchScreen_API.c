@@ -24,6 +24,7 @@ typedef enum {
     TOUCHSCREEN_EVENT_SHOW_WIFI_SETUP,
     TOUCHSCREEN_EVENT_SHOW_DASHBOARD,
     TOUCHSCREEN_EVENT_UPDATE_SCREEN,
+    TOUCHSCREEN_EVENT_SHOW_SETUP_WIZARD,
 } TOUCHSCREEN_EVENT_ID_T;
 
 /**
@@ -46,6 +47,7 @@ typedef struct {
     bool                    bInitialized;         /* Initialization flag */
     bool                    bRunning;             /* Running flag */
     void (*pfWiFiCallback)(int result, const char *ssid, const char *password);  /* WiFi callback */
+    void (*pfWizardCallback)(bool completed, bool wifi_configured, const char *ssid, const char *password);  /* Setup wizard callback */
 } TOUCHSCREEN_RSC_T;
 
 /* Static resource pointer for callback wrapper */
@@ -56,6 +58,7 @@ static void touchScreen_TaskEntry(void* pvArg);
 static int32_t touchScreen_HandleSplashEvent(TOUCHSCREEN_RSC_T* ptRsc, uint32_t duration_ms);
 static int32_t touchScreen_HandleWiFiSetupEvent(TOUCHSCREEN_RSC_T* ptRsc);
 static int32_t touchScreen_HandleDashboardEvent(TOUCHSCREEN_RSC_T* ptRsc);
+static int32_t touchScreen_HandleSetupWizardEvent(TOUCHSCREEN_RSC_T* ptRsc);
 
 /**
  * @brief Initialize the BSP display hardware
@@ -230,6 +233,31 @@ int32_t TouchScreen_ShowWiFiSetup(TOUCHSCREEN_H hTouchScreen, void (*wifi_setup_
 }
 
 /**
+ * @brief Show the first-time setup wizard screen
+ */
+int32_t TouchScreen_ShowSetupWizard(TOUCHSCREEN_H hTouchScreen,
+    void (*wizard_callback)(bool completed, bool wifi_configured, const char *ssid, const char *password))
+{
+    TOUCHSCREEN_RSC_T* ptRsc = (TOUCHSCREEN_RSC_T*)hTouchScreen;
+    TOUCHSCREEN_EVENT_T tEvent = {
+        .ulEvent = TOUCHSCREEN_EVENT_SHOW_SETUP_WIZARD,
+    };
+
+    if (NULL == ptRsc) {
+        return APP_ERROR_INVALID_PARAM;
+    }
+
+    ptRsc->pfWizardCallback = wizard_callback;
+
+    if (pdPASS == xQueueSend(ptRsc->hEventQueue, &tEvent, pdMS_TO_TICKS(100))) {
+        return APP_SUCCESS;
+    }
+
+    ESP_LOGW(TAG, "Failed to send setup wizard event to queue");
+    return APP_ERROR_QUEUE_SEND_FAILED;
+}
+
+/**
  * @brief Show the main dashboard screen
  */
 int32_t TouchScreen_ShowDashboard(TOUCHSCREEN_H hTouchScreen)
@@ -299,6 +327,11 @@ static void touchScreen_TaskEntry(void* pvArg)
                 case TOUCHSCREEN_EVENT_SHOW_DASHBOARD:
                     ESP_LOGI(TAG, "Showing dashboard screen");
                     touchScreen_HandleDashboardEvent(ptRsc);
+                    break;
+
+                case TOUCHSCREEN_EVENT_SHOW_SETUP_WIZARD:
+                    ESP_LOGI(TAG, "Showing setup wizard screen");
+                    touchScreen_HandleSetupWizardEvent(ptRsc);
                     break;
 
                 case TOUCHSCREEN_EVENT_NONE:
@@ -373,6 +406,30 @@ static int32_t touchScreen_HandleDashboardEvent(TOUCHSCREEN_RSC_T* ptRsc)
     }
 
     TouchScreen_UI_ShowDashboard();
+
+    return APP_SUCCESS;
+}
+
+/**
+ * @brief Setup wizard callback wrapper
+ */
+static void touchScreen_WizardCallbackWrapper(bool completed, bool wifi_configured, const char *ssid, const char *password)
+{
+    if (gs_ptTouchScreenRsc && gs_ptTouchScreenRsc->pfWizardCallback) {
+        gs_ptTouchScreenRsc->pfWizardCallback(completed, wifi_configured, ssid, password);
+    }
+}
+
+/**
+ * @brief Handle setup wizard screen event
+ */
+static int32_t touchScreen_HandleSetupWizardEvent(TOUCHSCREEN_RSC_T* ptRsc)
+{
+    if (NULL == ptRsc) {
+        return APP_ERROR_INVALID_PARAM;
+    }
+
+    TouchScreen_UI_ShowSetupWizard(touchScreen_WizardCallbackWrapper);
 
     return APP_SUCCESS;
 }
