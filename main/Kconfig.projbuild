@@ -1,0 +1,12 @@
+menu "School Bell Configuration"
+
+    config BSP_IO_EXPANDER_I2C_ADDR
+        hex "CH32V003 IO Expander I2C address"
+        default 0x20
+        help
+            I2C address of the CH32V003 IO expander on the Waveshare
+            ESP32-S3-Touch-LCD-4 board. The default 0x20 matches the
+            address used by the board. The upstream component default
+            is 0x24.
+
+endmenu
