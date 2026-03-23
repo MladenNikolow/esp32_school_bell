@@ -11,8 +11,44 @@
 #include "esp_log.h"
 #include "lwip/inet.h"   // for IPSTR / IP2STR
 #include "WS_EventHandlers.h"
+#include "mdns.h"
 
 static const char* TAG = "WEBSERVER_API";
+
+#define WS_MDNS_HOSTNAME    "ringy"
+#define WS_MDNS_INSTANCE    "Ringy School Bell"
+
+static esp_err_t
+ws_InitMdns(void)
+{
+    esp_err_t espErr = mdns_init();
+    if (ESP_OK != espErr)
+    {
+        ESP_LOGE(TAG, "mDNS init failed: %s", esp_err_to_name(espErr));
+        return espErr;
+    }
+
+    espErr = mdns_hostname_set(WS_MDNS_HOSTNAME);
+    if (ESP_OK != espErr)
+    {
+        ESP_LOGE(TAG, "mDNS hostname set failed: %s", esp_err_to_name(espErr));
+        return espErr;
+    }
+
+    espErr = mdns_instance_name_set(WS_MDNS_INSTANCE);
+    if (ESP_OK != espErr)
+    {
+        ESP_LOGE(TAG, "mDNS instance name set failed: %s", esp_err_to_name(espErr));
+        return espErr;
+    }
+
+    /* Advertise HTTP service so the device is discoverable by
+       service browsers (e.g. "dns-sd -B _http._tcp") */
+    (void)mdns_service_add(WS_MDNS_INSTANCE, "_http", "_tcp", 80, NULL, 0);
+
+    ESP_LOGI(TAG, "mDNS started — device reachable at http://" WS_MDNS_HOSTNAME ".local");
+    return ESP_OK;
+}
 
 typedef struct _WEB_SERVER_RSC_T
 {
@@ -73,6 +109,12 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
                         ESP_LOGI(TAG, "AP IP: " IPSTR, IP2STR(&ip.ip));
                     }
 
+                    /* mDNS: device reachable at ringy.local in AP mode */
+                    if (ESP_OK == espErr)
+                    {
+                        (void)ws_InitMdns();
+                    }
+
                     break;
                 }
 
@@ -88,9 +130,12 @@ Ws_Init(WEB_SERVER_PARAMS_T* ptParams, WEB_SERVER_H* phWebServer)
 
                     if(ESP_OK == espErr)
                     {
+                        /* mDNS: device reachable at ringy.local once STA gets an IP */
+                        (void)ws_InitMdns();
+
                         ESP_LOGI(TAG, "STA+AP fallback mode active — "
                                  "connect to AP \"ESP32_Setup\" (pass: 12345678) "
-                                 "at 192.168.4.1 to reconfigure WiFi");
+                                 "at 192.168.4.1 or http://ringy.local to reconfigure WiFi");
                     }
                     
                     break;

@@ -8,7 +8,7 @@
 
 static const char* TAG = "ringbell";
 
-#define RING_BELL_START_STOP_PIN           GPIO_NUM_4  /* D4 */
+#define RING_BELL_START_STOP_PIN           GPIO_NUM_8  /* SDA Pin 8 */
 #define RING_BELL_STATE_ON                 ((int)1)
 #define RING_BELL_STATE_OFF                ((int)0)
 

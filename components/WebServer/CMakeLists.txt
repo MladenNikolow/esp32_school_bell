@@ -20,6 +20,7 @@ idf_component_register(
         esp_timer
         nvs_flash
         json
+        mdns
         WiFi_Manager
         Generic
         Scheduler

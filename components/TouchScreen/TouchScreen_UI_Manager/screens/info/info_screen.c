@@ -160,33 +160,7 @@ static void info_create_web_access_card(lv_obj_t *parent)
     lv_obj_set_style_text_align(s_web_url_lbl, LV_TEXT_ALIGN_CENTER, 0);
 }
 
-static void info_create_about_card(lv_obj_t *parent)
-{
-    lv_obj_t *card = card_component_create_with_title(
-                         parent, CONTENT_WIDTH, LV_SIZE_CONTENT, ui_str(STR_ABOUT));
-    lv_obj_set_style_pad_all(card, 12, 0);
-    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(card, 4, 0);
 
-    lv_obj_t *name_lbl = lv_label_create(card);
-    lv_label_set_text(name_lbl, LV_SYMBOL_BELL "  Ringy \u2014 ESP32 School Bell");
-    lv_obj_set_style_text_font(name_lbl, UI_FONT_H3, 0);
-    lv_obj_set_style_text_color(name_lbl, UI_COLOR_TEXT_PRIMARY, 0);
-
-    lv_obj_t *desc_lbl = lv_label_create(card);
-    lv_label_set_text(desc_lbl, ui_str(STR_ABOUT_DESC));
-    lv_obj_set_style_text_font(desc_lbl, UI_FONT_CAPTION, 0);
-    lv_obj_set_style_text_color(desc_lbl, UI_COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_width(desc_lbl, LV_PCT(100));
-
-    create_divider(card);
-
-    lv_obj_t *hw_lbl = lv_label_create(card);
-    lv_label_set_text(hw_lbl, ui_str(STR_BOARD_INFO));
-    lv_obj_set_style_text_font(hw_lbl, UI_FONT_CAPTION, 0);
-    lv_obj_set_style_text_color(hw_lbl, UI_COLOR_TEXT_SECONDARY, 0);
-    lv_obj_set_width(hw_lbl, LV_PCT(100));
-}
 
 /* ------------------------------------------------------------------ */
 /* Data refresh                                                        */
@@ -292,7 +266,6 @@ void touchscreen_info_screen_create(void)
 
     info_create_device_card(s_content);
     info_create_web_access_card(s_content);
-    info_create_about_card(s_content);
 
     bsp_display_unlock();
 

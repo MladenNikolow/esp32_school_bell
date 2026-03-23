@@ -19,9 +19,9 @@ extern "C" {
 /* Periodic update interval */
 #define TOUCHSCREEN_UI_UPDATE_PERIOD_MS         1000  /* 1 second */
 
-/* Screen idle timeout for brightness dimming */
-#define TOUCHSCREEN_UI_DIM_TIMEOUT_MS           60000 /* 60 seconds */
-#define TOUCHSCREEN_UI_DIM_BRIGHTNESS           30    /* percent */
+/* Screen idle timeout for brightness dimming (display sleeps) */
+#define TOUCHSCREEN_UI_DIM_TIMEOUT_MS           30000 /* 30 seconds */
+#define TOUCHSCREEN_UI_DIM_BRIGHTNESS           0     /* percent (off) */
 #define TOUCHSCREEN_UI_FULL_BRIGHTNESS          100   /* percent */
 
 #ifdef __cplusplus
