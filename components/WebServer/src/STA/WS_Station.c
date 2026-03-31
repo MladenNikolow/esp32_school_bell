@@ -3,6 +3,7 @@
 #include "esp_wifi.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,6 +13,7 @@
 #include "React/RestAPI/Schedule/ScheduleAPI.h"
 #include "React/RestAPI/Pin/PinAPI.h"
 #include "Auth/WS_Auth.h"
+#include <time.h>
 
 static const char* TAG = "WS_STATION";
 
@@ -20,6 +22,9 @@ static const char* TAG = "WS_STATION";
 static EXAMPLE_API_H s_hExampleApi = NULL;
 static SCHEDULE_API_H s_hScheduleApi = NULL;
 static PIN_API_H s_hPinApi = NULL;
+
+static esp_err_t ws_Station_HealthHandler(httpd_req_t* ptReq);
+static esp_err_t ws_Station_StatusHandler(httpd_req_t* ptReq);
 
 /* ----------------------------------------------------------------
    Helper: check whether the STA interface has an active connection
@@ -39,7 +44,7 @@ ws_Station_IsStaConnected(void)
 static esp_err_t
 ws_Station_WifiStatusHandler(httpd_req_t* ptReq)
 {
-    httpd_resp_set_type(ptReq, "application/json");
+    auth_set_security_headers(ptReq);
 
     if (ws_Station_IsStaConnected())
     {
@@ -61,14 +66,21 @@ ws_Station_WifiStatusHandler(httpd_req_t* ptReq)
 static esp_err_t
 ws_Station_WifiConfigHandler(httpd_req_t* ptReq)
 {
+    auth_set_security_headers(ptReq);
+
+    if (!auth_csrf_check(ptReq))
+    {
+        return ESP_OK;
+    }
+
     /* When the STA is connected the user is on the normal network
        and must be authenticated.  When STA is NOT connected the
        user is on the fallback soft-AP — skip auth (same policy as
        the dedicated AP-mode WiFi config server).                  */
     if (ws_Station_IsStaConnected())
     {
-        esp_err_t espAuth = auth_require_bearer(ptReq, NULL, NULL);
-        if (ESP_OK != espAuth) return espAuth;
+        esp_err_t espAuth = auth_require_session(ptReq, NULL, NULL);
+        if (ESP_OK != espAuth) return ESP_OK;
     }
 
     char acBuf[384];
@@ -117,7 +129,6 @@ ws_Station_WifiConfigHandler(httpd_req_t* ptReq)
 
     const char* pcJson = cJSON_PrintUnformatted(ptResp);
 
-    httpd_resp_set_type(ptReq, "application/json");
     httpd_resp_sendstr(ptReq, pcJson);
 
     cJSON_Delete(ptResp);
@@ -151,11 +162,13 @@ ws_Station_AuthmodeToStr(wifi_auth_mode_t eAuthmode)
 static esp_err_t
 ws_Station_WifiNetworksHandler(httpd_req_t* ptReq)
 {
+    auth_set_security_headers(ptReq);
+
     /* Require auth only when STA is connected (see config handler). */
     if (ws_Station_IsStaConnected())
     {
-        esp_err_t espErr = auth_require_bearer(ptReq, NULL, NULL);
-        if (ESP_OK != espErr) return espErr;
+        esp_err_t espErr = auth_require_session(ptReq, NULL, NULL);
+        if (ESP_OK != espErr) return ESP_OK;
     }
 
     esp_err_t espErr = esp_wifi_scan_start(NULL, true);
@@ -207,12 +220,66 @@ ws_Station_WifiNetworksHandler(httpd_req_t* ptReq)
     free(ptApRecords);
 
     const char* pcJson = cJSON_PrintUnformatted(ptRoot);
-    httpd_resp_set_type(ptReq, "application/json");
     httpd_resp_sendstr(ptReq, pcJson);
 
     cJSON_Delete(ptRoot);
     free((void*)pcJson);
 
+    return ESP_OK;
+}
+
+static esp_err_t
+ws_Station_HealthHandler(httpd_req_t* ptReq)
+{
+    auth_set_security_headers(ptReq);
+
+    cJSON* ptRoot = cJSON_CreateObject();
+    cJSON_AddStringToObject(ptRoot, "status", "healthy");
+    cJSON_AddNumberToObject(ptRoot, "timestamp", (double)time(NULL));
+    cJSON_AddNumberToObject(ptRoot, "uptime", (double)(esp_timer_get_time() / 1000000ULL));
+
+    cJSON* ptMem = cJSON_CreateObject();
+    cJSON_AddNumberToObject(ptMem, "free", (double)esp_get_free_heap_size());
+    cJSON_AddNumberToObject(ptMem, "total", 520000.0);
+    cJSON_AddItemToObject(ptRoot, "memory", ptMem);
+
+    const char* pcJson = cJSON_PrintUnformatted(ptRoot);
+    httpd_resp_sendstr(ptReq, pcJson);
+
+    cJSON_Delete(ptRoot);
+    free((void*)pcJson);
+    return ESP_OK;
+}
+
+static esp_err_t
+ws_Station_StatusHandler(httpd_req_t* ptReq)
+{
+    auth_set_security_headers(ptReq);
+
+    cJSON* ptRoot = cJSON_CreateObject();
+    cJSON_AddStringToObject(ptRoot, "device", "ESP32");
+    cJSON_AddStringToObject(ptRoot, "version", "1.0.0");
+
+    cJSON* ptWifi = cJSON_CreateObject();
+    wifi_ap_record_t tApInfo;
+    bool bConnected = (ESP_OK == esp_wifi_sta_get_ap_info(&tApInfo));
+    cJSON_AddBoolToObject(ptWifi, "connected", bConnected);
+    if (bConnected) {
+        cJSON_AddStringToObject(ptWifi, "ssid", (const char*)tApInfo.ssid);
+        cJSON_AddNumberToObject(ptWifi, "rssi", (double)tApInfo.rssi);
+    }
+    cJSON_AddItemToObject(ptRoot, "wifi", ptWifi);
+
+    cJSON* ptAuth = cJSON_CreateObject();
+    cJSON_AddBoolToObject(ptAuth, "enabled", true);
+    cJSON_AddNumberToObject(ptAuth, "sessions", auth_active_session_count());
+    cJSON_AddItemToObject(ptRoot, "auth", ptAuth);
+
+    const char* pcJson = cJSON_PrintUnformatted(ptRoot);
+    httpd_resp_sendstr(ptReq, pcJson);
+
+    cJSON_Delete(ptRoot);
+    free((void*)pcJson);
     return ESP_OK;
 }
 
@@ -275,6 +342,28 @@ WS_Station_Start(SCHEDULER_H hScheduler, WIFI_MANAGER_H hWiFiManager)
     if (ESP_OK == espRslt)
     {
         espRslt = PinAPI_Register(s_hPinApi, hHttpServer);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        httpd_uri_t tHealth = {
+            .uri      = "/api/health",
+            .method   = HTTP_GET,
+            .handler  = ws_Station_HealthHandler,
+            .user_ctx = NULL,
+        };
+        espRslt = httpd_register_uri_handler(hHttpServer, &tHealth);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        httpd_uri_t tStatus = {
+            .uri      = "/api/status",
+            .method   = HTTP_GET,
+            .handler  = ws_Station_StatusHandler,
+            .user_ctx = NULL,
+        };
+        espRslt = httpd_register_uri_handler(hHttpServer, &tStatus);
     }
 
     /* WiFi status endpoint — lets the frontend detect STA mode */

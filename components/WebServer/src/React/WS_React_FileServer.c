@@ -139,7 +139,18 @@ esp_err_t WS_React_FileServer_ServeFile(httpd_req_t* req,
         return httpd_resp_send_404(req);
     }
 
+    (void)httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+    (void)httpd_resp_set_hdr(req, "X-Frame-Options", "DENY");
+    (void)httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     (void)httpd_resp_set_type(req, mime);
+
+    if (strstr(mime, "text/html") != NULL)
+    {
+        (void)httpd_resp_set_hdr(req, "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; connect-src 'self'");
+    }
+
     if (is_gz)
     {
         (void)httpd_resp_set_hdr(req, "Content-Encoding", "gzip");

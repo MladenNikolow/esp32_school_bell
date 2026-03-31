@@ -9,6 +9,7 @@
 #include "esp_wifi.h"
 #include "esp_system.h"
 #include "cJSON.h"
+#include "Auth/WS_Auth.h"
 
 static const char* TAG = "WIFI_CONFIG_API";
 
@@ -108,6 +109,8 @@ WiFiConfigAPI_Register(WIFI_CONFIG_API_H hApi, httpd_handle_t hHttpServer)
 static esp_err_t
 wifiConfigApi_GetStatus(httpd_req_t* ptReq)
 {
+    auth_set_security_headers(ptReq);
+
     WIFI_CONFIG_API_RSC_T* ptRsc = (WIFI_CONFIG_API_RSC_T*)ptReq->user_ctx;
 
     uint8_t abSsid[WIFI_MANAGER_MAX_SSID_LENGTH + 1] = {0};
@@ -121,7 +124,6 @@ wifiConfigApi_GetStatus(httpd_req_t* ptReq)
 
     const char* pcJson = cJSON_PrintUnformatted(ptRoot);
 
-    httpd_resp_set_type(ptReq, "application/json");
     httpd_resp_sendstr(ptReq, pcJson);
 
     cJSON_Delete(ptRoot);
@@ -138,6 +140,13 @@ wifiConfigApi_GetStatus(httpd_req_t* ptReq)
 static esp_err_t
 wifiConfigApi_PostConfig(httpd_req_t* ptReq)
 {
+    auth_set_security_headers(ptReq);
+
+    if (!auth_csrf_check(ptReq))
+    {
+        return ESP_OK;
+    }
+
     (void)ptReq->user_ctx; /* WiFi_Manager_SaveCredentials is a free function */
 
     char acBuf[384];
@@ -186,7 +195,6 @@ wifiConfigApi_PostConfig(httpd_req_t* ptReq)
 
     const char* pcJson = cJSON_PrintUnformatted(ptResp);
 
-    httpd_resp_set_type(ptReq, "application/json");
     httpd_resp_sendstr(ptReq, pcJson);
 
     cJSON_Delete(ptResp);
@@ -223,6 +231,8 @@ wifiConfigApi_AuthmodeToStr(wifi_auth_mode_t eAuthmode)
 static esp_err_t
 wifiConfigApi_GetNetworks(httpd_req_t* ptReq)
 {
+    auth_set_security_headers(ptReq);
+
     (void)ptReq->user_ctx;
 
     /* Blocking scan — runs inside the httpd task, typically takes 1–2 s */
@@ -276,7 +286,6 @@ wifiConfigApi_GetNetworks(httpd_req_t* ptReq)
 
     const char* pcJson = cJSON_PrintUnformatted(ptRoot);
 
-    httpd_resp_set_type(ptReq, "application/json");
     httpd_resp_sendstr(ptReq, pcJson);
 
     cJSON_Delete(ptRoot);
