@@ -40,10 +40,10 @@ The browser sends this cookie automatically on every same-origin request. The Re
 - Cryptographically random, unpredictable
 
 ### Session Store
-- Fixed-size array in RAM: `session_t[MAX_SESSIONS]` (MAX_SESSIONS = 3)
+- Fixed-size array in RAM: `session_t[MAX_SESSIONS]` (MAX_SESSIONS = 1)
 - Each session: `{ token[65], username[32], role[16], created_at, active }`
-- **Eviction**: When all slots are full, the oldest session is evicted
-- **Expiration**: 24-hour maximum age (`SESSION_MAX_AGE_S = 86400`)
+- **Eviction**: When the slot is full, the existing session is evicted
+- **Expiration**: 1-hour maximum age (`SESSION_MAX_AGE_S = 3600`)
 - **Reboot behavior**: All sessions lost (RAM-only) = automatic logout on power cycle
 
 ### Session Lookup

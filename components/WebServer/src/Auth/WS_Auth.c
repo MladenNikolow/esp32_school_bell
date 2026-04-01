@@ -18,8 +18,8 @@ static const char *TAG = "AUTH";
 #define USER_MAX_LEN  31
 #define ROLE_MAX_LEN  15
 
-#define MAX_SESSIONS 3
-#define SESSION_MAX_AGE_S 86400
+#define MAX_SESSIONS 1
+#define SESSION_MAX_AGE_S 3600
 
 // credentials configured via menuconfig (Component config -> WebServer Auth)
 #define AUTH_USERNAME CONFIG_WS_AUTH_USERNAME

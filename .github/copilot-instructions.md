@@ -58,7 +58,7 @@ Other directories:
 The web interface uses **HttpOnly session cookies** — documented in `docs/AUTHENTICATION.md`. Key points:
 
 - Server sets `Set-Cookie: session=<token>; HttpOnly; SameSite=Strict; Path=/` on login
-- Max 3 concurrent sessions, 24h expiry, stored in RAM (lost on reboot)
+- Max 1 concurrent session, 1h expiry, stored in RAM (lost on reboot)
 - Token: 32-char hex from `esp_random()`
 - CSRF: POST/PUT/DELETE require `Content-Type: application/json` + `X-Requested-With: XMLHttpRequest`
 - Guard pattern: `auth_require_session()` + `auth_csrf_check()` per handler
