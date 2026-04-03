@@ -1,6 +1,6 @@
 # ESP32 School Bell — REST API Specification
 
-Complete reference for all HTTP endpoints served by the ESP32 firmware. Authentication uses **HttpOnly session cookies** with CSRF protection. See [AUTHENTICATION.md](AUTHENTICATION.md) for full auth system documentation.
+Complete reference for all HTTP endpoints served by the ESP32 firmware. Authentication uses **HttpOnly session cookies** with CSRF protection and role-based access control (service/client). See [AUTHENTICATION.md](AUTHENTICATION.md) for full auth system documentation.
 
 ---
 
@@ -23,8 +23,10 @@ X-Requested-With: XMLHttpRequest
 Set-Cookie: session=<token>; HttpOnly; SameSite=Strict; Path=/
 ```
 ```json
-{ "user": { "username": "admin", "role": "admin" }, "message": "Login successful" }
+{ "user": { "username": "admin", "role": "service" }, "message": "Login successful" }
 ```
+
+`role` is `"service"` or `"client"` depending on which account matched.
 
 **Errors:** 400 (bad JSON), 401 (invalid credentials), 429 (rate limited)
 
@@ -50,8 +52,10 @@ Set-Cookie: session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0
 
 **Response (200):**
 ```json
-{ "valid": true, "user": { "username": "admin", "role": "admin" } }
+{ "valid": true, "user": { "username": "admin", "role": "service" } }
 ```
+
+`role` is `"service"` or `"client"`.
 
 **Errors:** 401 (no cookie or expired)
 
@@ -344,6 +348,56 @@ Deletes config files from SPIFFS, recreates from `default_schedule.json`, resets
 { "pin": "5678" }
 ```
 PIN must be 4–6 digits.
+
+---
+
+## Credential Management Endpoints
+
+These endpoints manage client account credentials. **Service role only** — returns `403 Forbidden` for client-role sessions.
+
+### GET /api/system/credentials
+**Access**: Session (service role)
+
+**Response (200):**
+```json
+{ "clientExists": true, "clientUsername": "teacher" }
+```
+If no client account exists: `{ "clientExists": false }`
+
+---
+
+### POST /api/system/credentials
+**Access**: Session + CSRF (service role)
+
+**Request:**
+```json
+{ "username": "teacher", "password": "securepass" }
+```
+- `username`: 1–31 characters
+- `password`: minimum 8 characters
+
+**Response (200):**
+```json
+{ "status": "ok", "message": "Client credentials saved" }
+```
+
+All active sessions are invalidated after this operation.
+
+**Errors:** 400 (invalid input), 403 (not service role), 500 (storage error)
+
+---
+
+### DELETE /api/system/credentials
+**Access**: Session + CSRF (service role)
+
+**Response (200):**
+```json
+{ "status": "ok", "message": "Client credentials deleted" }
+```
+
+All active sessions are invalidated after this operation.
+
+**Errors:** 403 (not service role), 404 (no client account), 500 (storage error)
 
 ---
 

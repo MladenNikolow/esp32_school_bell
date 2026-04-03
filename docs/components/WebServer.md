@@ -17,8 +17,12 @@ components/WebServer/
     ├── WS_EventHandlers.h/c       # WiFi event handlers (STA/AP/IP)
     │
     ├── Auth/
-    │   ├── WS_Auth.h              # Auth API (register, require_session, csrf_check)
-    │   └── WS_Auth.c              # Session management, login/logout/validate
+    │   ├── WS_Auth.h              # Auth API (register, require_session, csrf_check, role guards)
+    │   ├── WS_Auth.c              # Session management, login/logout/validate, role-aware auth
+    │   ├── WS_AuthCrypto.h        # Salted SHA-256 hashing & constant-time verification
+    │   ├── WS_AuthCrypto.c
+    │   ├── WS_AuthStore.h         # NVS credential store for service & client accounts
+    │   └── WS_AuthStore.c
     │
     ├── STA/
     │   ├── WS_Station.h           # Station-mode server start
@@ -45,6 +49,9 @@ components/WebServer/
     │       ├── Pin/
     │       │   ├── PinAPI.h       # PIN management endpoints
     │       │   └── PinAPI.c
+    │       ├── Credential/
+    │       │   ├── CredentialAPI.h # Client credential management (service-role only)
+    │       │   └── CredentialAPI.c
     │       └── Example/
     │           ├── ExampleAPI.h   # Mode toggle (dev/demo)
     │           └── ExampleAPI.c
@@ -90,20 +97,24 @@ Documented in detail in [AUTHENTICATION.md](../AUTHENTICATION.md).
 
 ### Auth API
 ```c
+esp_err_t auth_init(void);                           // Initialize auth store (hash service creds on first boot)
 esp_err_t auth_register_endpoints(httpd_handle_t server);
 void      auth_set_security_headers(httpd_req_t* req);
 bool      auth_csrf_check(httpd_req_t* req);
 esp_err_t auth_require_session(httpd_req_t* req, const char** out_user, const char** out_role);
+esp_err_t auth_require_role(httpd_req_t* req, const char* required_role, const char** out_user, const char** out_role);
+void      auth_invalidate_all_sessions(void);
 int       auth_active_session_count(void);
 ```
 
 ### Session Management
 - **Token**: 32-character hex string from `esp_random()`
-- **Max sessions**: 3 concurrent
-- **Session lifetime**: 24 hours
+- **Max sessions**: 1 concurrent
+- **Session lifetime**: 1 hour (`SESSION_MAX_AGE_S = 3600`)
 - **Storage**: RAM (cleared on reboot = automatic logout)
 - **Cookie**: `session=<token>; HttpOnly; SameSite=Strict; Path=/`
-- **Eviction**: Oldest session evicted when all slots full
+- **Eviction**: Existing session evicted when slot is full
+- **Roles**: `"service"` (full access + credential mgmt) or `"client"` (full access minus credential mgmt)
 
 ### CSRF Protection
 Required on all POST/PUT/DELETE to protected endpoints:
@@ -172,6 +183,14 @@ Content-Type: application/json
 | GET | `/api/system/pin` | Session | Get current PIN |
 | POST | `/api/system/pin` | Session+CSRF | Set new 4–6 digit PIN |
 
+### Credential Management (CredentialAPI.c)
+
+| Method | URI | Auth | Description |
+|--------|-----|------|-------------|
+| GET | `/api/system/credentials` | Session (service only) | Check if client exists + get username |
+| POST | `/api/system/credentials` | Session+CSRF (service only) | Create/update client credentials |
+| DELETE | `/api/system/credentials` | Session+CSRF (service only) | Delete client account |
+
 ### System Status (WS_Station.c — inline)
 
 | Method | URI | Auth | Description |
@@ -209,11 +228,17 @@ Content-Type: application/json
 ```kconfig
 menu "WebServer Auth"
     config WS_AUTH_USERNAME
-        string "Admin username"
+        string "Service account username"
         default "admin"
+        help
+            Compile-time service account username (cannot be changed at runtime).
+
     config WS_AUTH_PASSWORD
-        string "Admin password"
+        string "Service account initial password"
         default "password123"
+        help
+            Hashed into NVS on first boot only. Changing this
+            value only takes effect after NVS erase.
 endmenu
 ```
 
@@ -245,4 +270,5 @@ void Ws_EventHandlers_ResumeReconnect(void);    // Resume STA reconnect after Wi
 - FileSystem (FatFS for React assets)
 - cJSON (request/response parsing)
 - ESP HTTP Server (`esp_http_server`)
+- mbedtls (SHA-256 hashing, constant-time comparison)
 - mDNS (`ringy.local`)

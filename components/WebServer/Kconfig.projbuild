@@ -1,16 +1,19 @@
 menu "WebServer Auth"
 
     config WS_AUTH_USERNAME
-        string "Admin username"
+        string "Service account username"
         default "admin"
         help
-            Username for the web interface administrator account.
+            Username for the service (administrator) account.
+            This is a compile-time constant and cannot be changed at runtime.
 
     config WS_AUTH_PASSWORD
-        string "Admin password"
+        string "Service account initial password"
         default "password123"
         help
-            Password for the web interface administrator account.
+            Initial password for the service account. Used only on first boot
+            to generate a salted SHA-256 hash stored in NVS. After first boot
+            this value is ignored — the NVS hash is the source of truth.
             Change this before deploying to production.
 
 endmenu

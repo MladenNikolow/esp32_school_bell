@@ -6,7 +6,10 @@ The authentication system uses **HttpOnly session cookies** managed entirely ser
 
 | Layer | File | Responsibility |
 |-------|------|----------------|
-| **Session Management** | `components/WebServer/src/Auth/WS_Auth.c` | Token generation, session store, login/logout/validate handlers |
+| **Session Management** | `components/WebServer/src/Auth/WS_Auth.c` | Token generation, session store, login/logout/validate, role-based guards |
+| **Password Hashing** | `components/WebServer/src/Auth/WS_AuthCrypto.c` | Salted SHA-256 hashing, constant-time verification |
+| **Credential Storage** | `components/WebServer/src/Auth/WS_AuthStore.c` | NVS-backed credential store for service & client accounts |
+| **Credential Management** | `components/WebServer/src/React/RestAPI/Credential/CredentialAPI.c` | REST API for client account CRUD (service-role only) |
 | **CSRF Protection** | `components/WebServer/src/Auth/WS_Auth.c` | Content-Type + X-Requested-With enforcement |
 | **Security Headers** | `components/WebServer/src/Auth/WS_Auth.c` | X-Content-Type-Options, X-Frame-Options, Cache-Control |
 | **Endpoint Guards** | `components/WebServer/src/React/RestAPI/` | `auth_require_session()` + `auth_csrf_check()` per handler |
@@ -41,7 +44,7 @@ The browser sends this cookie automatically on every same-origin request. The Re
 
 ### Session Store
 - Fixed-size array in RAM: `session_t[MAX_SESSIONS]` (MAX_SESSIONS = 1)
-- Each session: `{ token[65], username[32], role[16], created_at, active }`
+- Each session: `{ token[33], username[32], role[16], created_at, active }`
 - **Eviction**: When the slot is full, the existing session is evicted
 - **Expiration**: 1-hour maximum age (`SESSION_MAX_AGE_S = 3600`)
 - **Reboot behavior**: All sessions lost (RAM-only) = automatic logout on power cycle
@@ -49,7 +52,7 @@ The browser sends this cookie automatically on every same-origin request. The Re
 ### Session Lookup
 - `auth_require_session()` extracts `session=<token>` from the `Cookie` header
 - Looks up token in the session array
-- Verifies session is active and not expired (24h)
+- Verifies session is active and not expired (1h)
 - Returns username + role via output parameters
 
 ---
@@ -99,17 +102,20 @@ Server: auth_csrf_check() → rate_limit_check()
   │
   ├─ Rate limited → 429 Too Many Requests
   │
-  ├─ Bad credentials → 401 Unauthorized
+  ├─ Bad credentials (neither service nor client match) → 401 Unauthorized
   │
   └─ Success:
-       1. Generate 32-char hex token via esp_random()
-       2. Allocate session slot (evict oldest if full)
-       3. Store { token, username, role, created_at }
+       1. Verify credentials: try service account first (`auth_store_verify_service()`),
+          then client account (`auth_store_verify_client()`)
+       2. Determine role: `"service"` or `"client"`
+       3. Generate 32-char hex token via esp_random()
+       4. Allocate session slot (evict oldest if full)
+       5. Store { token, username, role, created_at }
        │
        ▼
   Response (200):
     Set-Cookie: session=<token>; HttpOnly; SameSite=Strict; Path=/
-    Body: { "user": { "username": "admin", "role": "admin" }, "message": "Login successful" }
+    Body: { "user": { "username": "<name>", "role": "service|client" }, "message": "Login successful" }
 ```
 
 ### Rate Limiting
@@ -133,7 +139,7 @@ Server: auth_require_session(req, &user, &role)
   ├─ Invalid/expired token → 401 Unauthorized
   │
   └─ Valid:
-       Response (200): { "valid": true, "user": { "username": "admin", "role": "admin" } }
+       Response (200): { "valid": true, "user": { "username": "<name>", "role": "service|client" } }
 ```
 
 ---
@@ -194,14 +200,14 @@ Set on **every** response via `auth_set_security_headers()`:
 
 ## Public vs Protected Endpoints
 
-| Public (no auth) | Protected (session required) |
-|---|---|
-| `POST /api/login` (rate-limited) | `POST /api/logout` |
-| `GET /api/health` | `GET /api/validate-token` |
-| `GET /api/status` | `GET/POST /api/schedule/*` |
-| `GET /api/wifi/status` | `GET/POST /api/bell/*` |
-| `GET /api/wifi/networks`* | `GET/POST /api/system/*` |
-| `POST /api/wifi/config`* | `GET/POST /api/mode` |
+| Public (no auth) | Protected (session required) | Protected (service role only) |
+|---|---|---|
+| `POST /api/login` (rate-limited) | `POST /api/logout` | `GET /api/system/credentials` |
+| `GET /api/health` | `GET /api/validate-token` | `POST /api/system/credentials` |
+| `GET /api/status` | `GET/POST /api/schedule/*` | `DELETE /api/system/credentials` |
+| `GET /api/wifi/status` | `GET/POST /api/bell/*` | |
+| `GET /api/wifi/networks`* | `GET/POST /api/system/*` | |
+| `POST /api/wifi/config`* | `GET/POST /api/mode` | |
 
 \*WiFi endpoints are public on soft-AP, protected when STA is connected.
 
@@ -221,16 +227,92 @@ Separate from the web session auth — used for local touchscreen access control
 
 ---
 
+## Dual-Account Model
+
+The system supports two account types with role-based access:
+
+| Account | Role | Credential Source | Can Manage Client? | Can Be Changed? |
+|---------|------|-------------------|--------------------|-----------------|
+| **Service** | `"service"` | Kconfig → NVS (first-boot hash) | Yes | No (compile-time) |
+| **Client** | `"client"` | Created by service via REST API | No | Yes (via service) |
+
+### Service Account
+- Username: compile-time constant from `CONFIG_WS_AUTH_USERNAME`
+- Password: Kconfig `CONFIG_WS_AUTH_PASSWORD` hashed to NVS on first boot only
+- Full system access + credential management endpoints
+- Cannot be modified at runtime
+
+### Client Account
+- Optional — no client account exists by default
+- Created/updated/deleted by the service account via `POST/DELETE /api/system/credentials`
+- Full system access except credential management
+- Stored in NVS namespace `"auth"` (keys: `cli_user`, `cli_salt`, `cli_hash`, `cli_exists`)
+
+---
+
+## Password Hashing
+
+All passwords are stored as **salted SHA-256** hashes in NVS. Plaintext passwords are never persisted.
+
+### Algorithm
+1. Generate 16-byte random salt via `esp_fill_random()`
+2. Compute `SHA-256(salt || password)` using `mbedtls_sha256()`
+3. Store salt (32 hex chars) and hash (64 hex chars) as NVS strings
+
+### Verification
+1. Read stored salt + hash from NVS
+2. Recompute `SHA-256(stored_salt || input_password)`
+3. **Constant-time comparison** via `mbedtls_ct_memcmp()` — prevents timing attacks
+
+### NVS Storage Layout (namespace: `"auth"`)
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `svc_salt` | string (32 hex) | Service account password salt |
+| `svc_hash` | string (64 hex) | Service account password SHA-256 hash |
+| `cli_user` | string (1–31 chars) | Client account username |
+| `cli_salt` | string (32 hex) | Client account password salt |
+| `cli_hash` | string (64 hex) | Client account password SHA-256 hash |
+| `cli_exists` | uint8 (0/1) | Whether a client account exists |
+
+### Implementation Files
+- `WS_AuthCrypto.c` — `auth_crypto_hash_password()`, `auth_crypto_verify_password()`, hex conversion helpers
+- `WS_AuthStore.c` — `auth_store_init()`, `auth_store_verify_service()`, `auth_store_verify_client()`, `auth_store_set_client()`, `auth_store_delete_client()`
+
+---
+
+## Credential Management API
+
+Service-role accounts can manage client credentials via REST endpoints:
+
+| Method | URI | Auth | Description |
+|--------|-----|------|-------------|
+| GET | `/api/system/credentials` | Session (service only) | Check if client exists + get username |
+| POST | `/api/system/credentials` | Session+CSRF (service only) | Create or update client account |
+| DELETE | `/api/system/credentials` | Session+CSRF (service only) | Delete client account |
+
+All credential changes invalidate all active sessions (`auth_invalidate_all_sessions()`).
+
+See [API_SPECIFICATION.md](API_SPECIFICATION.md) for request/response formats.
+
+---
+
 ## Kconfig Options
 
 ```kconfig
 menu "WebServer Auth"
     config WS_AUTH_USERNAME
-        string "Admin username"
+        string "Service account username"
         default "admin"
+        help
+            Compile-time service account username (cannot be changed at runtime).
+
     config WS_AUTH_PASSWORD
-        string "Admin password"
+        string "Service account initial password"
         default "password123"
+        help
+            Hashed into NVS on first boot only. Changing this
+            value only takes effect after NVS erase.
 endmenu
 ```
 

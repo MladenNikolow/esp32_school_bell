@@ -12,6 +12,7 @@
 #include "React/RestAPI/Example/ExampleAPI.h"
 #include "React/RestAPI/Schedule/ScheduleAPI.h"
 #include "React/RestAPI/Pin/PinAPI.h"
+#include "React/RestAPI/Credential/CredentialAPI.h"
 #include "Auth/WS_Auth.h"
 #include <time.h>
 
@@ -22,6 +23,7 @@ static const char* TAG = "WS_STATION";
 static EXAMPLE_API_H s_hExampleApi = NULL;
 static SCHEDULE_API_H s_hScheduleApi = NULL;
 static PIN_API_H s_hPinApi = NULL;
+static CREDENTIAL_API_H s_hCredentialApi = NULL;
 
 static esp_err_t ws_Station_HealthHandler(httpd_req_t* ptReq);
 static esp_err_t ws_Station_StatusHandler(httpd_req_t* ptReq);
@@ -289,6 +291,14 @@ WS_Station_Start(SCHEDULER_H hScheduler, WIFI_MANAGER_H hWiFiManager)
     esp_err_t espRslt = ESP_OK;
     httpd_config_t tHttpServerConfig = HTTPD_DEFAULT_CONFIG();
 
+    /* Initialise auth subsystem (provisions service hash on first boot) */
+    espRslt = auth_init();
+    if (ESP_OK != espRslt)
+    {
+        ESP_LOGE(TAG, "auth_init failed: %s", esp_err_to_name(espRslt));
+        return espRslt;
+    }
+
     (void)hWiFiManager; /* WiFi_Manager_SaveCredentials is a free function */
     tHttpServerConfig.max_uri_handlers = 64;
     tHttpServerConfig.stack_size = 16384;
@@ -342,6 +352,17 @@ WS_Station_Start(SCHEDULER_H hScheduler, WIFI_MANAGER_H hWiFiManager)
     if (ESP_OK == espRslt)
     {
         espRslt = PinAPI_Register(s_hPinApi, hHttpServer);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        CREDENTIAL_API_PARAMS_T tCredParams = {0};
+        espRslt = CredentialAPI_Init(&tCredParams, &s_hCredentialApi);
+    }
+
+    if (ESP_OK == espRslt)
+    {
+        espRslt = CredentialAPI_Register(s_hCredentialApi, hHttpServer);
     }
 
     if (ESP_OK == espRslt)

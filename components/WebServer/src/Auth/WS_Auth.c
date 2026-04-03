@@ -1,4 +1,5 @@
 #include "WS_Auth.h"
+#include "WS_AuthStore.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
@@ -21,11 +22,8 @@ static const char *TAG = "AUTH";
 #define MAX_SESSIONS 1
 #define SESSION_MAX_AGE_S 3600
 
-// credentials configured via menuconfig (Component config -> WebServer Auth)
-#define AUTH_USERNAME CONFIG_WS_AUTH_USERNAME
-#define AUTH_PASSWORD CONFIG_WS_AUTH_PASSWORD
-
-static const char* DEMO_ROLE = "admin";
+static const char* ROLE_SERVICE = "service";
+static const char* ROLE_CLIENT  = "client";
 
 // login rate limit: 5 attempts / 60 seconds (global, simple)
 #define LOGIN_WINDOW_SEC 60
@@ -275,9 +273,15 @@ static esp_err_t api_login(httpd_req_t* req)
     const char* username = u->valuestring;
     const char* password = p->valuestring;
 
-    esp_err_t credsOk = ((0 == strcmp(username, AUTH_USERNAME)) && (0 == strcmp(password, AUTH_PASSWORD))) ? ESP_OK : ESP_FAIL;
+    /* Determine role: try service first, then client */
+    const char* role = NULL;
+    if (auth_store_verify_service(username, password)) {
+        role = ROLE_SERVICE;
+    } else if (auth_store_verify_client(username, password)) {
+        role = ROLE_CLIENT;
+    }
 
-    if (ESP_OK != credsOk) {
+    if (NULL == role) {
         cJSON_Delete(root);
         return send_json(req, "401 Unauthorized", "{\"error\":\"invalid credentials\"}");
     }
@@ -286,7 +290,7 @@ static esp_err_t api_login(httpd_req_t* req)
     memset(session, 0, sizeof(*session));
     make_token(session->token);
     snprintf(session->username, sizeof(session->username), "%s", username);
-    snprintf(session->role, sizeof(session->role), "%s", DEMO_ROLE);
+    snprintf(session->role, sizeof(session->role), "%s", role);
     session->created_at = time(NULL);
     session->active = true;
 
@@ -349,6 +353,44 @@ static esp_err_t api_validate(httpd_req_t* req)
     }
 
     return ESP_OK;
+}
+
+esp_err_t auth_init(void)
+{
+    return auth_store_init();
+}
+
+esp_err_t auth_require_role(httpd_req_t* req, const char* required_role,
+                            const char** out_user, const char** out_role)
+{
+    const char* user = NULL;
+    const char* role = NULL;
+
+    esp_err_t err = auth_require_session(req, &user, &role);
+    if (ESP_OK != err) {
+        return err;  /* 401 already sent */
+    }
+
+    if ((NULL == required_role) || (NULL == role) || (0 != strcmp(role, required_role))) {
+        (void)send_json(req, "403 Forbidden", "{\"error\":\"Insufficient permissions\"}");
+        return ESP_FAIL;
+    }
+
+    if (NULL != out_user) { *out_user = user; }
+    if (NULL != out_role) { *out_role = role; }
+    return ESP_OK;
+}
+
+void auth_invalidate_all_sessions(void)
+{
+    for (int i = 0; i < MAX_SESSIONS; i++) {
+        g_sessions[i].active = false;
+        g_sessions[i].token[0] = '\0';
+        g_sessions[i].username[0] = '\0';
+        g_sessions[i].role[0] = '\0';
+        g_sessions[i].created_at = 0;
+    }
+    ESP_LOGI(TAG, "All sessions invalidated");
 }
 
 esp_err_t auth_register_endpoints(httpd_handle_t server)

@@ -55,16 +55,20 @@ Other directories:
 
 ## Authentication System
 
-The web interface uses **HttpOnly session cookies** — documented in `docs/AUTHENTICATION.md`. Key points:
+The web interface uses **HttpOnly session cookies** with **dual-account role-based access** — documented in `docs/AUTHENTICATION.md`. Key points:
 
+- **Two account types**: Service (full access + credential management) and Client (full access minus credential management)
+- **Salted SHA-256 password hashing** via mbedtls, stored in NVS namespace `"auth"`
+- Service credentials: Kconfig `WS_AUTH_USERNAME` (compile-time) / `WS_AUTH_PASSWORD` (hashed to NVS on first boot)
+- Client credentials: created/managed by service account via `/api/system/credentials`
 - Server sets `Set-Cookie: session=<token>; HttpOnly; SameSite=Strict; Path=/` on login
 - Max 1 concurrent session, 1h expiry, stored in RAM (lost on reboot)
 - Token: 32-char hex from `esp_random()`
 - CSRF: POST/PUT/DELETE require `Content-Type: application/json` + `X-Requested-With: XMLHttpRequest`
-- Guard pattern: `auth_require_session()` + `auth_csrf_check()` per handler
+- Guard patterns: `auth_require_session()` (any authenticated), `auth_require_role()` (specific role), `auth_csrf_check()`
 - Security headers on all responses: `X-Content-Type-Options`, `X-Frame-Options`, `Cache-Control`
 - Rate limiting: 5 login attempts per 60-second window
-- Credentials: Kconfig `WS_AUTH_USERNAME` / `WS_AUTH_PASSWORD`
+- Auth modules: `WS_Auth.c` (sessions), `WS_AuthCrypto.c` (SHA-256), `WS_AuthStore.c` (NVS), `CredentialAPI.c` (REST)
 
 ## API Communication
 
@@ -88,7 +92,7 @@ The web interface uses **HttpOnly session cookies** — documented in `docs/AUTH
 
 | Location | Type | Mount | Contents |
 |----------|------|-------|----------|
-| NVS | flash | — | WiFi credentials, PIN, timezone, panic state, setup flags, language |
+| NVS | flash | — | WiFi credentials, PIN, timezone, panic state, setup flags, language, auth credentials (salted hashes) |
 | SPIFFS | flash | `/storage/` | `settings.json`, `schedule.json`, `calendar.json`, `templates.json` |
 | FatFS | flash | `/react/` | React SPA build (gzipped HTML/JS/CSS), `default_schedule.json` |
 

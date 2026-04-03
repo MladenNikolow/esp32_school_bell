@@ -145,6 +145,7 @@ Each component is documented in its own file under `docs/components/`:
 | `bell` | RingBell | `panic` (panic mode flag) |
 | `timesync` | TimeSync | `tz_posix` (timezone string) |
 | `touchscreen` | TouchScreen Services | `pin`, `setup_complete`, `language` |
+| `auth` | WebServer Auth | `svc_salt`, `svc_hash`, `cli_user`, `cli_salt`, `cli_hash`, `cli_exists` |
 
 ## ⚡ FreeRTOS Tasks
 
