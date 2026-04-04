@@ -153,7 +153,7 @@ void touchscreen_dashboard_screen_create(void)
     lv_obj_set_style_bg_opa(s_content, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(s_content, 0, 0);
     lv_obj_set_style_pad_all(s_content, UI_PAD_SMALL, 0);
-    lv_obj_set_style_pad_row(s_content, 4, 0);
+    lv_obj_set_style_pad_row(s_content, 8, 0);
     lv_obj_set_flex_flow(s_content, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(s_content, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_scrollbar_mode(s_content, LV_SCROLLBAR_MODE_AUTO);
@@ -295,12 +295,13 @@ static void dashboard_create_info_cards(lv_obj_t *parent)
 {
     lv_obj_t *card = card_component_create(parent, CONTENT_WIDTH, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(card, 12, 0);
-    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_style_pad_row(card, 4, 0);
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(card, 8, 0);
 
-    /* Date row: icon + text column */
+    /* ---- Date section: icon + text column ---- */
     lv_obj_t *date_row = lv_obj_create(card);
-    lv_obj_set_size(date_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_size(date_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(date_row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(date_row, 0, 0);
     lv_obj_set_style_pad_all(date_row, 0, 0);
@@ -308,6 +309,7 @@ static void dashboard_create_info_cards(lv_obj_t *parent)
     lv_obj_set_flex_align(date_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(date_row, UI_PAD_SMALL, 0);
     lv_obj_set_scrollbar_mode(date_row, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_flex_grow(date_row, 1);
 
     lv_obj_t *date_icon = lv_label_create(date_row);
     lv_label_set_text(date_icon, LV_SYMBOL_LOOP);
@@ -332,18 +334,18 @@ static void dashboard_create_info_cards(lv_obj_t *parent)
     lv_obj_set_style_text_font(s_day_date_lbl, UI_FONT_BODY, 0);
     lv_obj_set_style_text_color(s_day_date_lbl, UI_COLOR_TEXT_PRIMARY, 0);
 
-    /* Divider */
+    /* Vertical divider */
     lv_obj_t *divider = lv_obj_create(card);
-    lv_obj_set_size(divider, LV_PCT(100), 1);
+    lv_obj_set_size(divider, 1, LV_PCT(80));
     lv_obj_set_style_bg_color(divider, UI_COLOR_DIVIDER, 0);
     lv_obj_set_style_bg_opa(divider, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(divider, 0, 0);
     lv_obj_set_style_pad_all(divider, 0, 0);
     lv_obj_set_scrollbar_mode(divider, LV_SCROLLBAR_MODE_OFF);
 
-    /* Day Type row: icon + text column */
+    /* ---- Day Type section: icon + text column ---- */
     lv_obj_t *type_row = lv_obj_create(card);
-    lv_obj_set_size(type_row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_size(type_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(type_row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(type_row, 0, 0);
     lv_obj_set_style_pad_all(type_row, 0, 0);
@@ -351,6 +353,7 @@ static void dashboard_create_info_cards(lv_obj_t *parent)
     lv_obj_set_flex_align(type_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(type_row, UI_PAD_SMALL, 0);
     lv_obj_set_scrollbar_mode(type_row, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_flex_grow(type_row, 1);
 
     lv_obj_t *type_icon = lv_label_create(type_row);
     lv_label_set_text(type_icon, LV_SYMBOL_LIST);

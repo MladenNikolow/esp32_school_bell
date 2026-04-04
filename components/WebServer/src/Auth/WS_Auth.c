@@ -1,8 +1,10 @@
 #include "WS_Auth.h"
+#include "WS_AuthStore.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdbool.h>
 
 #include "esp_log.h"
 #include "esp_system.h"
@@ -13,24 +15,30 @@
 static const char *TAG = "AUTH";
 
 // ---------------------- Config ----------------------
-#define TOKEN_MAX_LEN 64
+#define SESSION_TOKEN_LEN 32
 #define USER_MAX_LEN  31
 #define ROLE_MAX_LEN  15
 
-// credentials configured via menuconfig (Component config -> WebServer Auth)
-#define AUTH_USERNAME CONFIG_WS_AUTH_USERNAME
-#define AUTH_PASSWORD CONFIG_WS_AUTH_PASSWORD
+#define MAX_SESSIONS 1
+#define SESSION_MAX_AGE_S 3600
 
-static const char* DEMO_ROLE = "admin";
+static const char* ROLE_SERVICE = "service";
+static const char* ROLE_CLIENT  = "client";
 
 // login rate limit: 5 attempts / 60 seconds (global, simple)
 #define LOGIN_WINDOW_SEC 60
 #define LOGIN_MAX_ATTEMPTS 5
 
 // ---------------------- State ----------------------
-static char g_token[TOKEN_MAX_LEN + 1] = {0};
-static char g_user[USER_MAX_LEN + 1] = {0};
-static char g_role[ROLE_MAX_LEN + 1] = {0};
+typedef struct {
+    char token[SESSION_TOKEN_LEN + 1];
+    char username[USER_MAX_LEN + 1];
+    char role[ROLE_MAX_LEN + 1];
+    time_t created_at;
+    bool active;
+} session_t;
+
+static session_t g_sessions[MAX_SESSIONS] = {0};
 
 static int  g_login_count = 0;
 static long g_login_window_start = 0;
@@ -48,28 +56,27 @@ static esp_err_t rate_limited(void)
     return (g_login_count > LOGIN_MAX_ATTEMPTS) ? ESP_FAIL : ESP_OK;
 }
 
-static void make_token(char out[TOKEN_MAX_LEN + 1])
+static void make_token(char out[SESSION_TOKEN_LEN + 1])
 {
-    // 16 random bytes -> 32 hex chars (safe + easy)
-    uint8_t r[16];
+    for (size_t i = 0; i < SESSION_TOKEN_LEN; i += 2) {
+        uint8_t byte = (uint8_t)(esp_random() & 0xFF);
+        sprintf(out + i, "%02x", byte);
+    }
+    out[SESSION_TOKEN_LEN] = '\0';
+}
 
-    for (int i = 0; i < 16; i += 4) {
-        uint32_t v = esp_random();
-        r[i + 0] = (v >>  0) & 0xFF;
-        r[i + 1] = (v >>  8) & 0xFF;
-        r[i + 2] = (v >> 16) & 0xFF;
-        r[i + 3] = (v >> 24) & 0xFF;
-    }
-    for (int i = 0; i < 16; i++) {
-        sprintf(out + i*2, "%02x", r[i]);
-    }
-    out[32] = 0;
+void auth_set_security_headers(httpd_req_t* req)
+{
+    httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+    httpd_resp_set_hdr(req, "X-Frame-Options", "DENY");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_type(req, "application/json");
 }
 
 static esp_err_t send_json(httpd_req_t* req, const char* status, const char* json)
 {
+    auth_set_security_headers(req);
     httpd_resp_set_status(req, status);
-    httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, json);
 }
 
@@ -92,62 +99,145 @@ static esp_err_t read_body(httpd_req_t* req, char* out, size_t outlen)
     return ESP_OK;
 }
 
-static esp_err_t get_bearer_token(httpd_req_t* req, char* out, size_t outlen)
+static const char* extract_session_cookie(httpd_req_t* req)
 {
-    char auth[256];
-    esp_err_t err = httpd_req_get_hdr_value_str(req, "Authorization", auth, sizeof(auth));
-    if (ESP_OK != err) {
-        return ESP_ERR_NOT_FOUND;
+    static char cookie_buf[256];
+    if (httpd_req_get_hdr_value_str(req, "Cookie", cookie_buf, sizeof(cookie_buf)) != ESP_OK) {
+        return NULL;
     }
 
-    const char* prefix = "Bearer ";
-    if (0 != strncmp(auth, prefix, strlen(prefix))) {
-        return ESP_ERR_NOT_FOUND;
+    char* start = strstr(cookie_buf, "session=");
+    if (NULL == start) {
+        return NULL;
     }
 
-    const char* tok = auth + strlen(prefix);
-    size_t tlen = strlen(tok);
-    if ((0 == tlen) || ((tlen + 1) > outlen)) {
-        return ESP_ERR_INVALID_SIZE;
+    start += 8;
+    char* end = strchr(start, ';');
+    if (NULL != end) {
+        *end = '\0';
     }
 
-    strcpy(out, tok);
-    return ESP_OK;
+    if (strlen(start) == 0) {
+        return NULL;
+    }
+
+    return start;
 }
 
-static esp_err_t token_valid(void)
+static session_t* find_session(const char* token)
 {
-    return (g_token[0] != '\0') ? ESP_OK : ESP_FAIL;
+    if (NULL == token) {
+        return NULL;
+    }
+
+    time_t now = time(NULL);
+    for (int i = 0; i < MAX_SESSIONS; i++) {
+        if (g_sessions[i].active && (strcmp(g_sessions[i].token, token) == 0)) {
+            if (difftime(now, g_sessions[i].created_at) > SESSION_MAX_AGE_S) {
+                g_sessions[i].active = false;
+                return NULL;
+            }
+            return &g_sessions[i];
+        }
+    }
+
+    return NULL;
 }
 
-static void token_invalidate(void)
+static session_t* allocate_session_slot(void)
 {
-    g_token[0] = 0;
-    g_user[0] = 0;
-    g_role[0] = 0;
+    int oldest_idx = 0;
+    time_t oldest = g_sessions[0].created_at;
+
+    for (int i = 0; i < MAX_SESSIONS; i++) {
+        if (!g_sessions[i].active) {
+            return &g_sessions[i];
+        }
+
+        if (i == 0 || g_sessions[i].created_at < oldest) {
+            oldest = g_sessions[i].created_at;
+            oldest_idx = i;
+        }
+    }
+
+    return &g_sessions[oldest_idx];
+}
+
+static void invalidate_session_by_token(const char* token)
+{
+    for (int i = 0; i < MAX_SESSIONS; i++) {
+        if (g_sessions[i].active && (strcmp(g_sessions[i].token, token) == 0)) {
+            g_sessions[i].active = false;
+            g_sessions[i].token[0] = '\0';
+            g_sessions[i].username[0] = '\0';
+            g_sessions[i].role[0] = '\0';
+            g_sessions[i].created_at = 0;
+            return;
+        }
+    }
+}
+
+int auth_active_session_count(void)
+{
+    int count = 0;
+    time_t now = time(NULL);
+
+    for (int i = 0; i < MAX_SESSIONS; i++) {
+        if (!g_sessions[i].active) {
+            continue;
+        }
+
+        if (difftime(now, g_sessions[i].created_at) > SESSION_MAX_AGE_S) {
+            g_sessions[i].active = false;
+            continue;
+        }
+
+        count++;
+    }
+
+    return count;
+}
+
+bool auth_csrf_check(httpd_req_t* req)
+{
+    if ((req->method == HTTP_GET) || (req->method == HTTP_OPTIONS) || (req->method == HTTP_HEAD)) {
+        return true;
+    }
+
+    char ct[64] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Content-Type", ct, sizeof(ct)) != ESP_OK
+        || strncmp(ct, "application/json", 16) != 0) {
+        (void)send_json(req, "415 Unsupported Media Type", "{\"error\":\"Content-Type must be application/json\"}");
+        return false;
+    }
+
+    char xrw[32] = {0};
+    if (httpd_req_get_hdr_value_str(req, "X-Requested-With", xrw, sizeof(xrw)) != ESP_OK
+        || strcmp(xrw, "XMLHttpRequest") != 0) {
+        (void)send_json(req, "403 Forbidden", "{\"error\":\"Missing X-Requested-With header\"}");
+        return false;
+    }
+
+    return true;
 }
 
 // ---------------------- Public guard ----------------------
-esp_err_t auth_require_bearer(httpd_req_t* req, const char** out_user, const char** out_role)
+esp_err_t auth_require_session(httpd_req_t* req, const char** out_user, const char** out_role)
 {
-    if (ESP_OK != token_valid()) {
-        (void)send_json(req, "401 Unauthorized", "{\"error\":\"not logged in\"}");
+    const char* token = extract_session_cookie(req);
+    if (NULL == token) {
+        (void)send_json(req, "401 Unauthorized", "{\"error\":\"Authentication required\"}");
         return ESP_FAIL;
     }
 
-    char token[TOKEN_MAX_LEN + 1];
-    if (ESP_OK != get_bearer_token(req, token, sizeof(token))) {
-        (void)send_json(req, "401 Unauthorized", "{\"error\":\"missing Authorization Bearer token\"}");
+    session_t* s = find_session(token);
+    if (NULL == s) {
+        (void)send_json(req, "401 Unauthorized", "{\"error\":\"Invalid or expired session\"}");
         return ESP_FAIL;
     }
 
-    if (0 != strcmp(token, g_token)) {
-        (void)send_json(req, "401 Unauthorized", "{\"error\":\"invalid or expired token\"}");
-        return ESP_FAIL;
-    }
-
-    if (NULL != out_user) { *out_user = g_user; }
-    if (NULL != out_role) { *out_role = g_role; }
+    if (NULL != out_user) { *out_user = s->username; }
+    if (NULL != out_role) { *out_role = s->role; }
 
     return ESP_OK;
 }
@@ -155,8 +245,12 @@ esp_err_t auth_require_bearer(httpd_req_t* req, const char** out_user, const cha
 // ---------------------- Endpoints ----------------------
 static esp_err_t api_login(httpd_req_t* req)
 {
+    if (!auth_csrf_check(req)) {
+        return ESP_OK;
+    }
+
     if (ESP_OK != rate_limited()) {
-        return send_json(req, "429 Too Many Requests", "{\"error\":\"rate limited\"}");
+        return send_json(req, "429 Too Many Requests", "{\"error\":\"Too many login attempts. Try again later.\"}");
     }
 
     char body[512];
@@ -179,54 +273,73 @@ static esp_err_t api_login(httpd_req_t* req)
     const char* username = u->valuestring;
     const char* password = p->valuestring;
 
-    esp_err_t credsOk = ((0 == strcmp(username, AUTH_USERNAME)) && (0 == strcmp(password, AUTH_PASSWORD))) ? ESP_OK : ESP_FAIL;
+    /* Determine role: try service first, then client */
+    const char* role = NULL;
+    if (auth_store_verify_service(username, password)) {
+        role = ROLE_SERVICE;
+    } else if (auth_store_verify_client(username, password)) {
+        role = ROLE_CLIENT;
+    }
 
-    if (ESP_OK != credsOk) {
+    if (NULL == role) {
         cJSON_Delete(root);
         return send_json(req, "401 Unauthorized", "{\"error\":\"invalid credentials\"}");
     }
 
-    // Copy username before freeing the cJSON tree
-    snprintf(g_user, sizeof(g_user), "%s", username);
-    snprintf(g_role, sizeof(g_role), "%s", DEMO_ROLE);
+    session_t* session = allocate_session_slot();
+    memset(session, 0, sizeof(*session));
+    make_token(session->token);
+    snprintf(session->username, sizeof(session->username), "%s", username);
+    snprintf(session->role, sizeof(session->role), "%s", role);
+    session->created_at = time(NULL);
+    session->active = true;
+
     cJSON_Delete(root);
 
-    // Issue new token (single active session)
-    make_token(g_token);
+    char cookie[128];
+    snprintf(cookie, sizeof(cookie), "session=%s; HttpOnly; SameSite=Strict; Path=/", session->token);
+    httpd_resp_set_hdr(req, "Set-Cookie", cookie);
 
-    char resp[512];
+    char resp[256];
     snprintf(resp, sizeof(resp),
         "{"
-          "\"token\":\"%s\","
           "\"user\":{\"username\":\"%s\",\"role\":\"%s\"},"
           "\"message\":\"Login successful\""
         "}",
-        g_token, g_user, g_role);
+        session->username, session->role);
 
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, resp);
+    return send_json(req, "200 OK", resp);
 }
 
 static esp_err_t api_logout(httpd_req_t* req)
 {
-    const char* user = NULL;
-    const char* role = NULL;
+    auth_set_security_headers(req);
 
-    esp_err_t espErr = auth_require_bearer(req, &user, &role);
-    if (ESP_OK == espErr) {
-        token_invalidate();
-        return send_json(req, "200 OK", "{\"success\":true,\"message\":\"Logged out successfully\"}");
+    if (!auth_csrf_check(req)) {
+        return ESP_OK;
     }
 
-    return espErr; // auth_require_bearer already sent response
+    if (ESP_OK != auth_require_session(req, NULL, NULL)) {
+        return ESP_OK;
+    }
+
+    const char* token = extract_session_cookie(req);
+    if (NULL != token) {
+        invalidate_session_by_token(token);
+    }
+
+    httpd_resp_set_hdr(req, "Set-Cookie", "session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0");
+    return send_json(req, "200 OK", "{\"success\":true,\"message\":\"Logged out successfully\"}");
 }
 
 static esp_err_t api_validate(httpd_req_t* req)
 {
+    auth_set_security_headers(req);
+
     const char* user = NULL;
     const char* role = NULL;
 
-    esp_err_t espErr = auth_require_bearer(req, &user, &role);
+    esp_err_t espErr = auth_require_session(req, &user, &role);
     if (ESP_OK == espErr) {
         char resp[256];
         snprintf(resp, sizeof(resp),
@@ -239,7 +352,45 @@ static esp_err_t api_validate(httpd_req_t* req)
         return send_json(req, "200 OK", resp);
     }
 
-    return espErr; // auth_require_bearer already sent response
+    return ESP_OK;
+}
+
+esp_err_t auth_init(void)
+{
+    return auth_store_init();
+}
+
+esp_err_t auth_require_role(httpd_req_t* req, const char* required_role,
+                            const char** out_user, const char** out_role)
+{
+    const char* user = NULL;
+    const char* role = NULL;
+
+    esp_err_t err = auth_require_session(req, &user, &role);
+    if (ESP_OK != err) {
+        return err;  /* 401 already sent */
+    }
+
+    if ((NULL == required_role) || (NULL == role) || (0 != strcmp(role, required_role))) {
+        (void)send_json(req, "403 Forbidden", "{\"error\":\"Insufficient permissions\"}");
+        return ESP_FAIL;
+    }
+
+    if (NULL != out_user) { *out_user = user; }
+    if (NULL != out_role) { *out_role = role; }
+    return ESP_OK;
+}
+
+void auth_invalidate_all_sessions(void)
+{
+    for (int i = 0; i < MAX_SESSIONS; i++) {
+        g_sessions[i].active = false;
+        g_sessions[i].token[0] = '\0';
+        g_sessions[i].username[0] = '\0';
+        g_sessions[i].role[0] = '\0';
+        g_sessions[i].created_at = 0;
+    }
+    ESP_LOGI(TAG, "All sessions invalidated");
 }
 
 esp_err_t auth_register_endpoints(httpd_handle_t server)

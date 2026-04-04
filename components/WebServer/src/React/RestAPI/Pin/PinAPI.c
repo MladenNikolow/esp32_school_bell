@@ -33,7 +33,7 @@ static esp_err_t
 sendJson(httpd_req_t *ptReq, cJSON *ptRoot)
 {
     const char *pcJson = cJSON_PrintUnformatted(ptRoot);
-    httpd_resp_set_type(ptReq, "application/json");
+    auth_set_security_headers(ptReq);
     httpd_resp_sendstr(ptReq, pcJson);
     free((void *)pcJson);
     cJSON_Delete(ptRoot);
@@ -46,12 +46,25 @@ sendError(httpd_req_t *ptReq, const char *pcStatus, const char *pcMsg)
     cJSON *ptRoot = cJSON_CreateObject();
     cJSON_AddStringToObject(ptRoot, "error", pcMsg);
     const char *pcJson = cJSON_PrintUnformatted(ptRoot);
+    auth_set_security_headers(ptReq);
     httpd_resp_set_status(ptReq, pcStatus);
-    httpd_resp_set_type(ptReq, "application/json");
     httpd_resp_sendstr(ptReq, pcJson);
     free((void *)pcJson);
     cJSON_Delete(ptRoot);
     return ESP_OK;
+}
+
+static bool
+requireProtectedAccess(httpd_req_t *ptReq, const char **ppcUser, const char **ppcRole)
+{
+    auth_set_security_headers(ptReq);
+
+    if ((ptReq->method == HTTP_POST || ptReq->method == HTTP_PUT || ptReq->method == HTTP_DELETE)
+        && !auth_csrf_check(ptReq)) {
+        return false;
+    }
+
+    return (auth_require_session(ptReq, ppcUser, ppcRole) == ESP_OK);
 }
 
 /* ------------------------------------------------------------------ */
@@ -134,7 +147,7 @@ handler_GetPin(httpd_req_t *ptReq)
 {
     const char *pcUser;
     const char *pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK)
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole))
     {
         return ESP_OK;
     }
@@ -161,7 +174,7 @@ handler_PostPin(httpd_req_t *ptReq)
 {
     const char *pcUser;
     const char *pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK)
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole))
     {
         return ESP_OK;
     }
@@ -200,3 +213,4 @@ handler_PostPin(httpd_req_t *ptReq)
     cJSON_AddStringToObject(ptResp, "status", "ok");
     return sendJson(ptReq, ptResp);
 }
+

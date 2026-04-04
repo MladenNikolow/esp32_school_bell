@@ -35,7 +35,7 @@ static esp_err_t
 sendJson(httpd_req_t* ptReq, cJSON* ptRoot)
 {
     const char* pcJson = cJSON_PrintUnformatted(ptRoot);
-    httpd_resp_set_type(ptReq, "application/json");
+    auth_set_security_headers(ptReq);
     httpd_resp_sendstr(ptReq, pcJson);
     free((void*)pcJson);
     cJSON_Delete(ptRoot);
@@ -48,8 +48,8 @@ sendError(httpd_req_t* ptReq, const char* pcStatus, const char* pcMsg)
     cJSON* ptRoot = cJSON_CreateObject();
     cJSON_AddStringToObject(ptRoot, "error", pcMsg);
     const char* pcJson = cJSON_PrintUnformatted(ptRoot);
+    auth_set_security_headers(ptReq);
     httpd_resp_set_status(ptReq, pcStatus);
-    httpd_resp_set_type(ptReq, "application/json");
     httpd_resp_sendstr(ptReq, pcJson);
     free((void*)pcJson);
     cJSON_Delete(ptRoot);
@@ -67,6 +67,19 @@ readBody(httpd_req_t* ptReq, char* pcBuf, size_t ulBufSize)
     return iLen;
 }
 
+static bool
+requireProtectedAccess(httpd_req_t* ptReq, const char** ppcUser, const char** ppcRole)
+{
+    auth_set_security_headers(ptReq);
+
+    if ((ptReq->method == HTTP_POST || ptReq->method == HTTP_PUT || ptReq->method == HTTP_DELETE)
+        && !auth_csrf_check(ptReq)) {
+        return false;
+    }
+
+    return (auth_require_session(ptReq, ppcUser, ppcRole) == ESP_OK);
+}
+
 /* ================================================================== */
 /* GET /api/schedule/settings                                          */
 /* ================================================================== */
@@ -75,7 +88,7 @@ static esp_err_t
 handler_GetSettings(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_SETTINGS_T tSettings;
     Schedule_Data_LoadSettings(&tSettings);
@@ -92,7 +105,7 @@ static esp_err_t
 handler_PostSettings(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_API_RSC_T* ptRsc = (SCHEDULE_API_RSC_T*)ptReq->user_ctx;
 
@@ -148,7 +161,7 @@ static esp_err_t
 handler_GetBells(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_SHIFT_T tFirst, tSecond;
     Schedule_Data_LoadBells(&tFirst, &tSecond);
@@ -215,7 +228,7 @@ static esp_err_t
 handler_PostBells(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_API_RSC_T* ptRsc = (SCHEDULE_API_RSC_T*)ptReq->user_ctx;
 
@@ -264,7 +277,7 @@ static esp_err_t
 handler_GetHolidays(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_DATA_T* ptData = (SCHEDULE_DATA_T*)calloc(1, sizeof(SCHEDULE_DATA_T));
     if (!ptData) return sendError(ptReq, "500 Internal Server Error", "Out of memory");
@@ -284,7 +297,7 @@ static esp_err_t
 handler_PostHolidays(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_API_RSC_T* ptRsc = (SCHEDULE_API_RSC_T*)ptReq->user_ctx;
 
@@ -356,7 +369,7 @@ static esp_err_t
 handler_GetExceptions(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_DATA_T* ptData = (SCHEDULE_DATA_T*)calloc(1, sizeof(SCHEDULE_DATA_T));
     if (!ptData) return sendError(ptReq, "500 Internal Server Error", "Out of memory");
@@ -378,7 +391,7 @@ static esp_err_t
 handler_PostExceptions(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_API_RSC_T* ptRsc = (SCHEDULE_API_RSC_T*)ptReq->user_ctx;
 
@@ -508,7 +521,7 @@ static esp_err_t
 handler_GetTemplates(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_DATA_T* ptData = (SCHEDULE_DATA_T*)calloc(1, sizeof(SCHEDULE_DATA_T));
     if (!ptData) return sendError(ptReq, "500 Internal Server Error", "Out of memory");
@@ -528,7 +541,7 @@ static esp_err_t
 handler_PostTemplates(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_API_RSC_T* ptRsc = (SCHEDULE_API_RSC_T*)ptReq->user_ctx;
 
@@ -596,7 +609,7 @@ static esp_err_t
 handler_GetBellStatus(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_API_RSC_T* ptRsc = (SCHEDULE_API_RSC_T*)ptReq->user_ctx;
 
@@ -658,7 +671,7 @@ static esp_err_t
 handler_PostPanic(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     char acBuf[128];
     int iLen = readBody(ptReq, acBuf, sizeof(acBuf));
@@ -694,7 +707,7 @@ static esp_err_t
 handler_GetSystemTime(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     struct tm tNow;
     TimeSync_GetLocalTime(&tNow);
@@ -729,7 +742,7 @@ static esp_err_t
 handler_GetDefaults(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     cJSON* ptDefaults = Schedule_Data_ReadDefaultsJson();
     if (NULL == ptDefaults)
@@ -748,7 +761,7 @@ static esp_err_t
 handler_PostTestBell(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     if (RingBell_IsPanic())
     {
@@ -791,7 +804,7 @@ static esp_err_t
 handler_GetSystemInfo(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     cJSON* ptRoot = cJSON_CreateObject();
 
@@ -850,7 +863,7 @@ static esp_err_t
 handler_PostReboot(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     ESP_LOGW(TAG, "System reboot requested by user %s", pcUser);
 
@@ -879,7 +892,7 @@ static esp_err_t
 handler_PostFactoryReset(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     SCHEDULE_API_RSC_T* ptRsc = (SCHEDULE_API_RSC_T*)ptReq->user_ctx;
 
@@ -920,7 +933,7 @@ static esp_err_t
 handler_PostSyncTime(httpd_req_t* ptReq)
 {
     const char* pcUser; const char* pcRole;
-    if (auth_require_bearer(ptReq, &pcUser, &pcRole) != ESP_OK) return ESP_OK;
+    if (!requireProtectedAccess(ptReq, &pcUser, &pcRole)) return ESP_OK;
 
     ESP_LOGI(TAG, "Manual time sync requested by user %s", pcUser);
     TimeSync_ForceSync();
@@ -992,3 +1005,5 @@ ScheduleAPI_Register(SCHEDULE_API_H hApi, httpd_handle_t hHttpServer)
     ESP_LOGI(TAG, "Schedule API registered (%d endpoints)", (int)(sizeof(atUris) / sizeof(atUris[0])));
     return ESP_OK;
 }
+
+
