@@ -131,6 +131,7 @@ int TS_Schedule_GetTodayOverrideAction(void);
 /** WiFi scan result entry for the touchscreen UI */
 typedef struct {
     char     acSsid[33];    /**< SSID (null-terminated) */
+    uint8_t  abBssid[6];    /**< AP BSSID (MAC address) */
     int8_t   cRssi;         /**< Signal strength in dBm */
     bool     bSecured;      /**< true if network requires password */
     uint8_t  ucChannel;     /**< WiFi channel */
@@ -177,8 +178,10 @@ esp_err_t TS_WiFi_GetConnectedSsid(char *pcOutBuf, size_t ulBufLen);
  *  Saves to NVS, reconfigures STA, disconnects and reconnects.
  *  The existing retry mechanism handles failures automatically.
  *  @param pcSsid     Network SSID
- *  @param pcPassword Network password (empty string for open networks) */
-esp_err_t TS_WiFi_Connect(const char *pcSsid, const char *pcPassword);
+ *  @param pcPassword Network password (empty string for open networks)
+ *  @param pucBssid   AP BSSID (6 bytes), or NULL if not known */
+esp_err_t TS_WiFi_Connect(const char *pcSsid, const char *pcPassword,
+                          const uint8_t *pucBssid);
 
 /** @brief Get the device's current STA IP address as a string.
  *  @param pcOutBuf Buffer for "x.x.x.x" string (must be >= 16 bytes)

@@ -34,6 +34,77 @@ static TaskHandle_t      s_scan_task_handle = NULL;
 #define SCAN_TASK_PRIORITY    2
 
 /* ------------------------------------------------------------------ */
+/* Probe scan helper — discover BSSID for a manually-entered SSID      */
+/* Runs a blocking scan with show_hidden=true, matches by SSID.        */
+/* Returns ESP_OK if found (BSSID written to pucBssidOut), else error.  */
+/* ------------------------------------------------------------------ */
+static esp_err_t
+probe_hidden_bssid(const char *pcSsid, uint8_t *pucBssidOut)
+{
+    wifi_scan_config_t tScanCfg = {
+        .show_hidden = true,
+    };
+
+    esp_err_t err = esp_wifi_scan_start(&tScanCfg, true);
+    if (ESP_OK != err)
+    {
+        ESP_LOGW(TAG, "Probe scan failed to start: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    uint16_t usApCount = 0;
+    esp_wifi_scan_get_ap_num(&usApCount);
+    if (usApCount == 0)
+    {
+        esp_wifi_scan_get_ap_records(&usApCount, NULL);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    wifi_ap_record_t *ptRecords = calloc(usApCount, sizeof(wifi_ap_record_t));
+    if (NULL == ptRecords)
+    {
+        return ESP_ERR_NO_MEM;
+    }
+
+    err = esp_wifi_scan_get_ap_records(&usApCount, ptRecords);
+    if (ESP_OK != err)
+    {
+        free(ptRecords);
+        return err;
+    }
+
+    /* Find best match (strongest RSSI) for the target SSID */
+    int8_t cBestRssi = -128;
+    bool bFound = false;
+    for (uint16_t i = 0; i < usApCount; i++)
+    {
+        if (strcmp((const char *)ptRecords[i].ssid, pcSsid) == 0)
+        {
+            if (ptRecords[i].rssi > cBestRssi)
+            {
+                cBestRssi = ptRecords[i].rssi;
+                memcpy(pucBssidOut, ptRecords[i].bssid, 6);
+                bFound = true;
+            }
+        }
+    }
+
+    free(ptRecords);
+
+    if (bFound)
+    {
+        ESP_LOGI(TAG, "Probe found BSSID %02X:%02X:%02X:%02X:%02X:%02X for '%s' (RSSI %d)",
+                 pucBssidOut[0], pucBssidOut[1], pucBssidOut[2],
+                 pucBssidOut[3], pucBssidOut[4], pucBssidOut[5],
+                 pcSsid, cBestRssi);
+        return ESP_OK;
+    }
+
+    ESP_LOGW(TAG, "Probe scan: SSID '%s' not found", pcSsid);
+    return ESP_ERR_NOT_FOUND;
+}
+
+/* ------------------------------------------------------------------ */
 /* Public API                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -72,6 +143,7 @@ TS_WiFi_Scan(TS_WiFi_AP_t *ptResults, uint16_t *pusCount)
         strncpy(ptResults[i].acSsid, (const char *)atRecords[i].ssid,
                 sizeof(ptResults[i].acSsid) - 1);
         ptResults[i].acSsid[sizeof(ptResults[i].acSsid) - 1] = '\0';
+        memcpy(ptResults[i].abBssid, atRecords[i].bssid, 6);
         ptResults[i].cRssi    = atRecords[i].rssi;
         ptResults[i].bSecured = (atRecords[i].authmode != WIFI_AUTH_OPEN);
         ptResults[i].ucChannel = atRecords[i].primary;
@@ -91,7 +163,7 @@ TS_WiFi_SaveCredentials(const char *pcSsid, const char *pcPassword)
     }
 
     ESP_LOGI(TAG, "Saving WiFi credentials for SSID: %s", pcSsid);
-    return WiFi_Manager_SaveCredentials(pcSsid, pcPassword ? pcPassword : "");
+    return WiFi_Manager_SaveCredentials(pcSsid, pcPassword ? pcPassword : "", NULL);
 }
 
 bool
@@ -204,6 +276,7 @@ scan_task_func(void *pvArg)
         strncpy(s_async_ap_list[i].acSsid, (const char *)ptRecords[i].ssid,
                 sizeof(s_async_ap_list[i].acSsid) - 1);
         s_async_ap_list[i].acSsid[sizeof(s_async_ap_list[i].acSsid) - 1] = '\0';
+        memcpy(s_async_ap_list[i].abBssid, ptRecords[i].bssid, 6);
         s_async_ap_list[i].cRssi    = ptRecords[i].rssi;
         s_async_ap_list[i].bSecured = (ptRecords[i].authmode != WIFI_AUTH_OPEN);
         s_async_ap_list[i].ucChannel = ptRecords[i].primary;
@@ -295,7 +368,7 @@ TS_WiFi_ScanAbort(void)
 }
 
 esp_err_t
-TS_WiFi_Connect(const char *pcSsid, const char *pcPassword)
+TS_WiFi_Connect(const char *pcSsid, const char *pcPassword, const uint8_t *pucBssid)
 {
     if (pcSsid == NULL || strlen(pcSsid) == 0)
     {
@@ -304,8 +377,19 @@ TS_WiFi_Connect(const char *pcSsid, const char *pcPassword)
 
     const char *pcPw = pcPassword ? pcPassword : "";
 
+    /* If no BSSID provided, attempt a probe scan to discover it
+       (handles hidden networks entered manually via SSID).         */
+    uint8_t abProbedBssid[6] = {0};
+    if (pucBssid == NULL || memcmp(pucBssid, abProbedBssid, 6) == 0)
+    {
+        if (probe_hidden_bssid(pcSsid, abProbedBssid) == ESP_OK)
+        {
+            pucBssid = abProbedBssid;
+        }
+    }
+
     /* 1. Persist credentials to NVS so they survive reboot */
-    esp_err_t err = WiFi_Manager_SaveCredentials(pcSsid, pcPw);
+    esp_err_t err = WiFi_Manager_SaveCredentials(pcSsid, pcPw, pucBssid);
     if (ESP_OK != err)
     {
         ESP_LOGE(TAG, "Failed to save credentials: %s", esp_err_to_name(err));
@@ -316,6 +400,20 @@ TS_WiFi_Connect(const char *pcSsid, const char *pcPassword)
     wifi_config_t tStaCfg = {0};
     strncpy((char *)tStaCfg.sta.ssid, pcSsid, sizeof(tStaCfg.sta.ssid) - 1);
     strncpy((char *)tStaCfg.sta.password, pcPw, sizeof(tStaCfg.sta.password) - 1);
+
+    /* Pin to specific AP if BSSID is provided and non-zero */
+    if (pucBssid != NULL)
+    {
+        static const uint8_t abZero[6] = {0};
+        if (memcmp(pucBssid, abZero, 6) != 0)
+        {
+            memcpy(tStaCfg.sta.bssid, pucBssid, 6);
+            tStaCfg.sta.bssid_set = true;
+            ESP_LOGI(TAG, "BSSID pinning: %02X:%02X:%02X:%02X:%02X:%02X",
+                     pucBssid[0], pucBssid[1], pucBssid[2],
+                     pucBssid[3], pucBssid[4], pucBssid[5]);
+        }
+    }
 
     err = esp_wifi_set_config(WIFI_IF_STA, &tStaCfg);
     if (ESP_OK != err)

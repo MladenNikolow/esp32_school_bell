@@ -8,6 +8,7 @@ extern "C" {
 
 #define WIFI_MANAGER_MAX_SSID_LENGTH            32
 #define WIFI_MANAGER_MAX_PASS_LENGTH            63
+#define WIFI_MANAGER_BSSID_LENGTH               6
 
 typedef enum _WIFI_MANAGER_CONFIGURATION_STATE_E
 {

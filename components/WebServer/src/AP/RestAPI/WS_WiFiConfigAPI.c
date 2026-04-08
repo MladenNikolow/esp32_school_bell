@@ -179,7 +179,7 @@ wifiConfigApi_PostConfig(httpd_req_t* ptReq)
     const char* pcSsid = ptSsid->valuestring;
     const char* pcPass = (ptPass && cJSON_IsString(ptPass)) ? ptPass->valuestring : "";
 
-    esp_err_t espErr = WiFi_Manager_SaveCredentials(pcSsid, pcPass);
+    esp_err_t espErr = WiFi_Manager_SaveCredentials(pcSsid, pcPass, NULL);
     cJSON_Delete(ptRoot);
 
     if (ESP_OK != espErr)

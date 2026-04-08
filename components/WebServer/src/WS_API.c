@@ -247,6 +247,7 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
 {
     uint8_t abSsid[WIFI_MANAGER_MAX_SSID_LENGTH + 1] = {0};
     uint8_t abPass[WIFI_MANAGER_MAX_PASS_LENGTH + 1] = {0};
+    uint8_t abBssid[6] = {0};
     size_t ssidLen = sizeof(abSsid);
     size_t passLen = sizeof(abPass);
 
@@ -353,6 +354,9 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
                                 abPass,
                                 &passLen);
 
+        /* Load stored BSSID (all-zero if not set) */
+        WiFi_Manager_GetBssid(ptRsc->tParams.hWiFiManager, abBssid);
+
         ESP_LOGI(TAG, "WIFI SSID: %s", abSsid);
         ESP_LOGI(TAG, "WIFI PASS: %s", abPass);
 
@@ -363,6 +367,19 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
         /* Copy password and ensure null termination */
         memcpy(tWifiCfg.sta.password, abPass, WIFI_MANAGER_MAX_PASS_LENGTH);
         tWifiCfg.sta.password[WIFI_MANAGER_MAX_PASS_LENGTH - 1] = '\0';
+
+        /* Pin to specific AP if BSSID is stored and non-zero */
+        {
+            static const uint8_t abZero[6] = {0};
+            if (memcmp(abBssid, abZero, 6) != 0)
+            {
+                memcpy(tWifiCfg.sta.bssid, abBssid, 6);
+                tWifiCfg.sta.bssid_set = true;
+                ESP_LOGI(TAG, "BSSID pinning: %02X:%02X:%02X:%02X:%02X:%02X",
+                         abBssid[0], abBssid[1], abBssid[2],
+                         abBssid[3], abBssid[4], abBssid[5]);
+            }
+        }
 
         /* If password is empty, allow open APs (station will still try to connect) */
         if (strlen((char*)abPass) == 0) 
@@ -398,6 +415,57 @@ ws_ConfigureSta(WEB_SERVER_RSC_T* ptRsc)
     if(ESP_OK == espErr) 
     {
         espErr = esp_wifi_start();
+    }
+
+    /* If stored BSSID is all-zero (manual entry or legacy device),
+       attempt a probe scan with show_hidden=true to discover it.   */
+    if (ESP_OK == espErr)
+    {
+        static const uint8_t abZeroBssid[6] = {0};
+        if (memcmp(abBssid, abZeroBssid, 6) == 0)
+        {
+            wifi_scan_config_t tProbeCfg = { .show_hidden = true };
+            if (ESP_OK == esp_wifi_scan_start(&tProbeCfg, true))
+            {
+                uint16_t usProbeCnt = 0;
+                esp_wifi_scan_get_ap_num(&usProbeCnt);
+
+                if (usProbeCnt > 0)
+                {
+                    wifi_ap_record_t *ptProbe = calloc(usProbeCnt, sizeof(wifi_ap_record_t));
+                    if (ptProbe != NULL)
+                    {
+                        if (ESP_OK == esp_wifi_scan_get_ap_records(&usProbeCnt, ptProbe))
+                        {
+                            int8_t cBest = -128;
+                            for (uint16_t i = 0; i < usProbeCnt; i++)
+                            {
+                                if (strcmp((const char *)ptProbe[i].ssid, (const char *)abSsid) == 0 &&
+                                    ptProbe[i].rssi > cBest)
+                                {
+                                    cBest = ptProbe[i].rssi;
+                                    memcpy(abBssid, ptProbe[i].bssid, 6);
+                                    memcpy(tWifiCfg.sta.bssid, abBssid, 6);
+                                    tWifiCfg.sta.bssid_set = true;
+                                }
+                            }
+                            if (tWifiCfg.sta.bssid_set)
+                            {
+                                ESP_LOGI(TAG, "Probe found BSSID %02X:%02X:%02X:%02X:%02X:%02X for '%s'",
+                                         abBssid[0], abBssid[1], abBssid[2],
+                                         abBssid[3], abBssid[4], abBssid[5], abSsid);
+                            }
+                        }
+                        free(ptProbe);
+                    }
+                }
+                else
+                {
+                    /* No APs found — release scan resources */
+                    esp_wifi_scan_get_ap_records(&usProbeCnt, NULL);
+                }
+            }
+        }
     }
 
     if(ESP_OK == espErr) 

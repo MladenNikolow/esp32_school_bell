@@ -47,7 +47,7 @@ appTask_WiFiSetupCallback(int result, const char *ssid, const char *password)
     {
         ESP_LOGI(TAG, "WiFi setup: saving credentials for SSID '%s'", ssid);
 
-        esp_err_t espErr = WiFi_Manager_SaveCredentials(ssid, password);
+        esp_err_t espErr = WiFi_Manager_SaveCredentials(ssid, password, NULL);
 
         if (ESP_OK == espErr)
         {
@@ -87,7 +87,7 @@ appTask_SetupWizardCallback(bool completed, bool wifi_configured,
     {
         ESP_LOGI(TAG, "Wizard WiFi configured for SSID '%s', saving and restarting", ssid);
 
-        esp_err_t espErr = WiFi_Manager_SaveCredentials(ssid, password);
+        esp_err_t espErr = WiFi_Manager_SaveCredentials(ssid, password, NULL);
         if (ESP_OK == espErr)
         {
             vTaskDelay(pdMS_TO_TICKS(1000));

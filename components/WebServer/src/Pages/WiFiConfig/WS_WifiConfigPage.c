@@ -64,7 +64,7 @@ Ws_WifiConfigPage_Post(httpd_req_t *req)
 
         if(ESP_OK == espErr)
         {
-            espErr = WiFi_Manager_SaveCredentials(ssid, pass);
+            espErr = WiFi_Manager_SaveCredentials(ssid, pass, NULL);
         }
 
         if(ESP_OK == espErr)

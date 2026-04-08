@@ -34,6 +34,7 @@ wifi_signal_color(int8_t rssi)
 /* ------------------------------------------------------------------ */
 typedef struct {
     char                      ssid[33];
+    uint8_t                   bssid[6];
     bool                      secured;
     wifi_list_item_click_cb_t cb;
 } wifi_item_data_t;
@@ -43,7 +44,7 @@ wifi_item_click_handler(lv_event_t *e)
 {
     wifi_item_data_t *data = (wifi_item_data_t *)lv_event_get_user_data(e);
     if (data && data->cb) {
-        data->cb(data->ssid, data->secured);
+        data->cb(data->ssid, data->bssid, data->secured);
     }
 }
 
@@ -123,6 +124,7 @@ wifi_list_item_create(lv_obj_t *parent, const TS_WiFi_AP_t *ap,
         wifi_item_data_t *data = calloc(1, sizeof(wifi_item_data_t));
         if (data) {
             strncpy(data->ssid, ap->acSsid, sizeof(data->ssid) - 1);
+            memcpy(data->bssid, ap->abBssid, 6);
             data->secured = ap->bSecured;
             data->cb = click_cb;
             lv_obj_add_event_cb(row, wifi_item_click_handler, LV_EVENT_CLICKED, data);

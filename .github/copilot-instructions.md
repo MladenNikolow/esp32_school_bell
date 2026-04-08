@@ -34,7 +34,7 @@ Modular component-based architecture under `components/`:
 - `TimeSync/` — NTP time synchronization with timezone support
 - `TouchScreen/` — LVGL UI framework (screens, services, i18n BG/EN)
 - `WebServer/` — HTTP server + REST API + React SPA hosting + auth
-- `WiFi_Manager/` — WiFi credential management (NVS persistence)
+- `WiFi_Manager/` — WiFi credential management (NVS persistence, BSSID pinning)
 
 Other directories:
 
@@ -92,7 +92,7 @@ The web interface uses **HttpOnly session cookies** with **dual-account role-bas
 
 | Location | Type | Mount | Contents |
 |----------|------|-------|----------|
-| NVS | flash | — | WiFi credentials, PIN, timezone, panic state, setup flags, language, auth credentials (salted hashes) |
+| NVS | flash | — | WiFi credentials (SSID, password, BSSID), PIN, timezone, panic state, setup flags, language, auth credentials (salted hashes) |
 | SPIFFS | flash | `/storage/` | `settings.json`, `schedule.json`, `calendar.json`, `templates.json` |
 | FatFS | flash | `/react/` | React SPA build (gzipped HTML/JS/CSS), `default_schedule.json` |
 

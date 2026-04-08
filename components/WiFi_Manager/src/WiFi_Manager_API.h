@@ -23,9 +23,14 @@ esp_err_t
 WiFi_Manager_GetConfigurationState(WIFI_MANAGER_H hWifiManager, 
                                    uint32_t* pulConfigurationState);
 
+int32_t
+WiFi_Manager_GetBssid(WIFI_MANAGER_H hWifiManager,
+                     uint8_t* pbBssid);
+
 esp_err_t
 WiFi_Manager_SaveCredentials(const char* ssid,
-                             const char* pass);
+                             const char* pass,
+                             const uint8_t* pucBssid);
                              
 esp_err_t
 WiFi_Manager_ClearCredentials(void);

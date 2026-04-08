@@ -141,7 +141,7 @@ ui_manager_runtime_wifi_cb(TouchScreen_WiFi_Setup_Result_t result,
 {
     if (result == TOUCHSCREEN_WIFI_SETUP_RESULT_SUCCESS && ssid && ssid[0] != '\0') {
         ESP_LOGI(TAG, "Runtime WiFi setup: connecting to '%s'", ssid);
-        TS_WiFi_Connect(ssid, password ? password : "");
+        TS_WiFi_Connect(ssid, password ? password : "", NULL);
     } else {
         ESP_LOGI(TAG, "Runtime WiFi setup cancelled");
         /* Safety net: if the scan disconnected us, reconnect using the

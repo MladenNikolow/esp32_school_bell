@@ -13,9 +13,10 @@ extern "C" {
 /**
  * @brief Callback when a WiFi list item is tapped
  * @param ssid The SSID of the tapped network
+ * @param bssid The BSSID (6-byte MAC) of the tapped network
  * @param secured true if network requires password
  */
-typedef void (*wifi_list_item_click_cb_t)(const char *ssid, bool secured);
+typedef void (*wifi_list_item_click_cb_t)(const char *ssid, const uint8_t *bssid, bool secured);
 
 /**
  * @brief Create a WiFi network list item row

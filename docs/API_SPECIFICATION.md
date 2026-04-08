@@ -450,8 +450,12 @@ All active sessions are invalidated after this operation.
 
 **Request:**
 ```json
-{ "ssid": "MyNetwork", "password": "password123" }
+{ "ssid": "MyNetwork", "password": "password123", "bssid": "AA:BB:CC:DD:EE:FF" }
 ```
+
+- `ssid` (string, required): Network SSID
+- `password` (string, optional): Network password (empty string for open networks)
+- `bssid` (string, optional): AP MAC address in `"XX:XX:XX:XX:XX:XX"` format — used to pin connection to a specific AP. Omit for manual SSID entry (a probe scan will attempt to discover it on connect).
 
 Saves credentials and triggers device restart.
 

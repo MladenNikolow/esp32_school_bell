@@ -110,6 +110,7 @@ static bool s_is_initial_setup = false;   /* true = boot-time, false = runtime r
 /* Callback and selected network info */
 static TouchScreen_WiFi_Setup_Callback_t s_callback = NULL;
 static char s_selected_ssid[33]  = {0};
+static uint8_t s_selected_bssid[6] = {0};
 static char s_selected_pw[65]    = {0};
 static bool s_selected_secured   = false;
 
@@ -201,11 +202,16 @@ on_skip_btn(lv_event_t *e)
 }
 
 static void
-on_network_selected(const char *ssid, bool secured)
+on_network_selected(const char *ssid, const uint8_t *bssid, bool secured)
 {
     ESP_LOGI(TAG, "Network selected: %s (secured=%d)", ssid, secured);
     strncpy(s_selected_ssid, ssid, sizeof(s_selected_ssid) - 1);
     s_selected_ssid[sizeof(s_selected_ssid) - 1] = '\0';
+    if (bssid != NULL) {
+        memcpy(s_selected_bssid, bssid, 6);
+    } else {
+        memset(s_selected_bssid, 0, 6);
+    }
     s_selected_secured = secured;
 
     if (secured) {
@@ -341,6 +347,7 @@ on_keyboard_event(lv_event_t *e)
                 s_selected_ssid[sizeof(s_selected_ssid) - 1] = '\0';
                 strncpy(s_selected_pw, pw ? pw : "", sizeof(s_selected_pw) - 1);
                 s_selected_pw[sizeof(s_selected_pw) - 1] = '\0';
+                memset(s_selected_bssid, 0, 6);  /* Manual entry — no BSSID */
                 view_show_connecting(s_selected_ssid);
             }
         }
@@ -379,6 +386,7 @@ on_man_connect(lv_event_t *e)
         s_selected_ssid[sizeof(s_selected_ssid) - 1] = '\0';
         strncpy(s_selected_pw, pw ? pw : "", sizeof(s_selected_pw) - 1);
         s_selected_pw[sizeof(s_selected_pw) - 1] = '\0';
+        memset(s_selected_bssid, 0, 6);  /* Manual entry — no BSSID */
         view_show_connecting(s_selected_ssid);
     }
 }
@@ -1091,7 +1099,7 @@ view_show_connecting(const char *ssid)
 
     /* Initiate actual WiFi connection */
     ESP_LOGI(TAG, "Initiating connection to '%s'", ssid);
-    TS_WiFi_Connect(ssid, s_selected_pw);
+    TS_WiFi_Connect(ssid, s_selected_pw, s_selected_bssid);
 
     /* Start periodic timer to check connection status */
     s_conn_elapsed = 0;

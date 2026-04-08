@@ -11,6 +11,7 @@
 #define WIFI_MANAGER_NVS_NAMESPACE              "wifi_manager"
 #define WIFI_MANAGER_NVS_KEY_SSID               "ssid"
 #define WIFI_MANAGER_NVS_KEY_PASS               "pass"
+#define WIFI_MANAGER_NVS_KEY_BSSID              "bssid"
 
 
 typedef struct _WIFI_MANAGER_RSC_T
@@ -18,6 +19,7 @@ typedef struct _WIFI_MANAGER_RSC_T
     uint32_t ulConfigurationState;                /* WIFI_MANAGER_CONFIGURATION_STATE_E */
     uint8_t  abSsid[WIFI_MANAGER_MAX_SSID_LENGTH + 1];
     uint8_t  abPass[WIFI_MANAGER_MAX_PASS_LENGTH + 1];
+    uint8_t  abBssid[WIFI_MANAGER_BSSID_LENGTH];  /* Stored AP BSSID (all-zero = not set) */
 } WIFI_MANAGER_RSC_T;
 
 int32_t
@@ -134,8 +136,23 @@ WiFi_Manager_GetPassword(WIFI_MANAGER_H hWifiManager,
     return lResult;
 }
 
+int32_t
+WiFi_Manager_GetBssid(WIFI_MANAGER_H hWifiManager,
+                     uint8_t* pbBssid)
+{
+    WIFI_MANAGER_RSC_T* ptRsc = (WIFI_MANAGER_RSC_T*)hWifiManager;
+
+    if ((NULL == ptRsc) || (NULL == pbBssid))
+    {
+        return APP_ERROR_INVALID_PARAM;
+    }
+
+    memcpy(pbBssid, ptRsc->abBssid, WIFI_MANAGER_BSSID_LENGTH);
+    return APP_SUCCESS;
+}
+
 esp_err_t
-WiFi_Manager_SaveCredentials(const char* ssid, const char* pass)
+WiFi_Manager_SaveCredentials(const char* ssid, const char* pass, const uint8_t* pucBssid)
 {
     esp_err_t espErr = ESP_OK;
     nvs_handle_t hNvs = 0;
@@ -150,6 +167,14 @@ WiFi_Manager_SaveCredentials(const char* ssid, const char* pass)
     if(ESP_OK == espErr)
     {
         espErr = NVS_WriteString(hNvs, WIFI_MANAGER_NVS_KEY_PASS, pass);
+    }
+
+    if(ESP_OK == espErr)
+    {
+        /* Store BSSID as 6-byte blob; all-zeros if not provided */
+        uint8_t abZeroBssid[WIFI_MANAGER_BSSID_LENGTH] = {0};
+        const uint8_t* pucData = (pucBssid != NULL) ? pucBssid : abZeroBssid;
+        espErr = NVS_Write(hNvs, WIFI_MANAGER_NVS_KEY_BSSID, pucData, WIFI_MANAGER_BSSID_LENGTH);
     }
 
     if(ESP_OK == espErr)
@@ -200,6 +225,7 @@ wiFi_Manager_InitCredentials(WIFI_MANAGER_RSC_T* ptRsc)
     nvs_handle_t hNvs = 0;
     size_t szSsidLen = sizeof(ptRsc->abSsid);
     size_t szPassLen = sizeof(ptRsc->abPass);
+    size_t szBssidLen = WIFI_MANAGER_BSSID_LENGTH;
 
     assert(NULL != ptRsc);
 
@@ -216,6 +242,13 @@ wiFi_Manager_InitCredentials(WIFI_MANAGER_RSC_T* ptRsc)
 
         if (ESP_OK == espErr)
         {
+            /* BSSID is optional — missing key (legacy devices) means no BSSID pinning */
+            esp_err_t bssidErr = NVS_Read(hNvs, WIFI_MANAGER_NVS_KEY_BSSID,
+                                          ptRsc->abBssid, &szBssidLen);
+            if (ESP_OK != bssidErr)
+            {
+                memset(ptRsc->abBssid, 0, WIFI_MANAGER_BSSID_LENGTH);
+            }
             ptRsc->ulConfigurationState = WIFI_MANAGER_CONFIGURATION_STATE_CONFIGURED;
         }
         else if(ESP_ERR_NVS_NOT_FOUND == espErr)

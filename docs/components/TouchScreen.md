@@ -180,9 +180,11 @@ void      TS_WiFi_ScanAbort(void);
 esp_err_t TS_WiFi_SaveCredentials(const char* pcSsid, const char* pcPassword);
 bool      TS_WiFi_IsConnected(void);
 esp_err_t TS_WiFi_GetConnectedSsid(char* pcOutBuf, size_t ulBufLen);
-esp_err_t TS_WiFi_Connect(const char* pcSsid, const char* pcPassword);
+esp_err_t TS_WiFi_Connect(const char* pcSsid, const char* pcPassword, const uint8_t* pucBssid);
 esp_err_t TS_WiFi_GetIpAddress(char* pcOutBuf, size_t ulBufLen);
 ```
+
+`TS_WiFi_AP_t` includes `abBssid[6]` alongside SSID, RSSI, secured, and channel fields. When connecting from the scan list, the selected AP's BSSID is passed through. For manual SSID entry, BSSID is NULL and a probe scan with `show_hidden=true` attempts to discover it.
 
 ## i18n (Internationalization)
 

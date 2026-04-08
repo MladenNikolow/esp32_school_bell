@@ -14,6 +14,7 @@
 #include "React/RestAPI/Pin/PinAPI.h"
 #include "React/RestAPI/Credential/CredentialAPI.h"
 #include "Auth/WS_Auth.h"
+#include <string.h>
 #include <time.h>
 
 static const char* TAG = "WS_STATION";
@@ -62,7 +63,7 @@ ws_Station_WifiStatusHandler(httpd_req_t* ptReq)
 
 // ----------------------------------------------------------------
 // POST /api/wifi/config  (STA mode — auth required)
-// Body:     { "ssid": "MyNetwork", "password": "secret" }
+// Body:     { "ssid": "MyNetwork", "password": "secret", "bssid": "AA:BB:CC:DD:EE:FF" }
 // Response: { "status": "ok", "message": "Credentials saved. Restarting..." }
 // ----------------------------------------------------------------
 static esp_err_t
@@ -115,7 +116,22 @@ ws_Station_WifiConfigHandler(httpd_req_t* ptReq)
     const char* pcSsid = ptSsid->valuestring;
     const char* pcPass = (ptPass && cJSON_IsString(ptPass)) ? ptPass->valuestring : "";
 
-    esp_err_t espErr = WiFi_Manager_SaveCredentials(pcSsid, pcPass);
+    /* Parse optional BSSID (format "AA:BB:CC:DD:EE:FF") */
+    uint8_t abBssid[6] = {0};
+    const uint8_t *pucBssid = NULL;
+    cJSON* ptBssid = cJSON_GetObjectItem(ptRoot, "bssid");
+    if (ptBssid && cJSON_IsString(ptBssid) && strlen(ptBssid->valuestring) == 17)
+    {
+        unsigned int b[6];
+        if (sscanf(ptBssid->valuestring, "%02X:%02X:%02X:%02X:%02X:%02X",
+                   &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6)
+        {
+            for (int i = 0; i < 6; i++) abBssid[i] = (uint8_t)b[i];
+            pucBssid = abBssid;
+        }
+    }
+
+    esp_err_t espErr = WiFi_Manager_SaveCredentials(pcSsid, pcPass, pucBssid);
     cJSON_Delete(ptRoot);
 
     if (ESP_OK != espErr)
